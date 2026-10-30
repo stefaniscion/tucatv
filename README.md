@@ -35,3 +35,9 @@ Web: HLS nativo preferito quando disponibile anche in modalità forzata, timeout
 
 ### Correzione layout player web
 Il player in errore non usa più il rapporto d'aspetto insieme a un'altezza minima per determinare la larghezza: il messaggio entra nel flusso e cresce in verticale. Larghezza vincolata al contenitore, pulsanti a capo e controlli superiori accessibili. Messaggio HTTP esplicita il controllo preventivo dell'app, senza attribuirlo a una richiesta fallita osservata nel browser.
+
+## Versione 0.5 — Desktop e Android
+- Desktop Windows/Linux con host PySide6, stesso frontend Svelte, bridge QWebChannel e libVLC incorporato. I dettagli di packaging, installazione e limiti di verifica sono in desktop/README.md.
+- Loghi Android scaricati tramite HTTP nativo (limite 2 MiB), caricamento solo in prossimità del viewport, quattro richieste concorrenti, cache fino a 8 MiB/160 voci e fallback con iniziali. Nessun allentamento della sicurezza della WebView.
+- PlaybackService Android possiede VLC indipendentemente dall'Activity. Foreground service mediaPlayback, notifica con pausa/stop, MediaSession e audio focus USAGE_MEDIA. Wake lock limitato alla riproduzione, pausa in caso di perdita audio focus e scollegamento cuffie. Il video viene scollegato in background e riagganciato alla UI al ritorno senza fermare l'audio. PiP automatico (Android 8+ quando supportato), tasto PiP e tasto Stop; Back torna al catalogo lasciando l'audio in background. La notifica riapre il player. Stop chiude la riproduzione.
+- MediaSession è usata per comandi e instradamento audio del sistema; non è una pubblicazione/app navigabile nel catalogo Android Auto. Compatibilità con l'auto, ritorno dal background, PiP e loghi reali ancora da verificare su hardware fisico.

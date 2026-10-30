@@ -36,3 +36,4 @@
  .player-brand{flex-shrink:1;min-width:0}
  .cinema.failed:fullscreen{overflow-y:auto}
 }
+.logo-frame{display:grid;place-items:center;width:100%;height:100%;min-width:0;overflow:hidden}.logo-frame img{display:block;max-width:100%;max-height:100%;object-fit:contain}.logo-initials{font-size:clamp(13px,2vw,38px);font-weight:650;color:#ffb26b;letter-spacing:-.03em}.channelicon .logo-initials{font-size:14px}.channelicon .logo-frame img{max-width:38px;max-height:38px}.media-art>.logo-frame{position:absolute;inset:12% 10%;width:80%;height:76%}.media-art .logo-frame img{width:100%;height:100%}.hero-art>.logo-frame{width:70%;height:75%}.hero-art .logo-frame img{width:100%;height:100%}
