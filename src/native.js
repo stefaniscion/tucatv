@@ -22,3 +22,9 @@ export async function nativePlaylist(url,onProgress){
   return {stream,total:size,dispose};
  }finally{await listener?.remove();}
 }
+export const nativeDeviceInfo=()=>isAndroid?androidPlayer.deviceInfo():Promise.resolve({tv:false});
+export const playbackState=()=>isAndroid?androidPlayer.getPlaybackState():Promise.resolve({available:false});
+export const resumePlayback=()=>androidPlayer.resumePlayback();
+export const stopPlayback=()=>androidPlayer.stopPlayback();
+export const exitToHome=()=>androidPlayer.exitToHome();
+export const watchPlayback=callback=>androidPlayer.addListener('playbackState',callback);

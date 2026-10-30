@@ -15,6 +15,9 @@ import java.util.ArrayList;
 
 /** Owns playback independently of the Activity and its video surface. */
 public class PlaybackService extends Service {
+ public static volatile PlaybackService current;
+ private boolean stopped=false;
+ public boolean hasSession(){return !stopped&&player!=null&&queue.length()>0;}
  public static final String TOGGLE="it.stefaniscion.onda.TOGGLE", STOP="it.stefaniscion.onda.STOP";
  public MediaPlayer player; private LibVLC engine; private MediaSession session; private AudioManager audio;
  private AudioFocusRequest focusRequest; private boolean resumeAfterFocus=false,hasFocus=false;
@@ -31,7 +34,7 @@ public class PlaybackService extends Service {
   else {boolean playing=player.isPlaying();resumeAfterFocus=change==AudioManager.AUDIOFOCUS_LOSS_TRANSIENT&&playing;hasFocus=false;player.pause();if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();updateSession();}
  };
  private final BroadcastReceiver noisy=new BroadcastReceiver(){public void onReceive(Context c,Intent i){pausePlayback();}};
- @Override public void onCreate(){super.onCreate();
+ @Override public void onCreate(){super.onCreate();current=this;
   audio=(AudioManager)getSystemService(AUDIO_SERVICE);wakeLock=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"TucaTV:Playback");wakeLock.setReferenceCounted(false);
   ArrayList<String> options=new ArrayList<>();options.add("--network-caching=1500");engine=new LibVLC(this,options);player=new MediaPlayer(engine);player.setAudioOutput("audiotrack");
   session=new MediaSession(this,"TucaTV");session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS|MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
@@ -46,12 +49,12 @@ public class PlaybackService extends Service {
  private boolean requestFocus(){ensureForeground();if(hasFocus)return true;int result=Build.VERSION.SDK_INT>=26?audio.requestAudioFocus(focusRequest):audio.requestAudioFocus(focus,AudioManager.STREAM_MUSIC,AudioManager.AUDIOFOCUS_GAIN);hasFocus=result==AudioManager.AUDIOFOCUS_REQUEST_GRANTED;return hasFocus;}
  private void abandonFocus(){if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();if(Build.VERSION.SDK_INT>=26)audio.abandonAudioFocusRequest(focusRequest);else audio.abandonAudioFocus(focus);hasFocus=false;resumeAfterFocus=false;}
  public void setSource(String url,String name,String json,int selected){try{queue=new JSONArray(json);}catch(Exception e){queue=new JSONArray();}index=selected;if(queue.optJSONObject(index)==null){queue=new JSONArray();JSONObject one=new JSONObject();try{one.put("url",url);one.put("title",name);queue.put(one);}catch(Exception e){}index=0;}open();}
- public void open(){JSONObject item=queue.optJSONObject(index);if(item==null||player==null)return;String url=item.optString("url");String scheme=Uri.parse(url).getScheme();if(!"http".equals(scheme)&&!"https".equals(scheme))return;ensureForeground();player.stop();title=item.optString("title","TucaTV");status="Connessione…";Media media=new Media(engine,Uri.parse(url));media.setHWDecoderEnabled(true,false);player.setMedia(media);media.release();playPlayback();}
+ public void open(){stopped=false;JSONObject item=queue.optJSONObject(index);if(item==null||player==null)return;String url=item.optString("url");String scheme=Uri.parse(url).getScheme();if(!"http".equals(scheme)&&!"https".equals(scheme))return;ensureForeground();player.stop();title=item.optString("title","TucaTV");status="Connessione…";Media media=new Media(engine,Uri.parse(url));media.setHWDecoderEnabled(true,false);player.setMedia(media);media.release();playPlayback();}
  public void change(int step){if(index+step>=0&&index+step<queue.length()){index+=step;open();}}
  public void playPlayback(){if(player!=null&&requestFocus()){session.setActive(true);if(!wakeLock.isHeld())wakeLock.acquire();player.setVolume(100);player.play();updateSession();}else status="Audio occupato da un’altra app. Premi Riproduci per riprovare.";}
  public void pausePlayback(){if(player!=null){resumeAfterFocus=false;player.pause();abandonFocus();updateSession();}}
  public void toggle(){if(player!=null){if(player.isPlaying())pausePlayback();else playPlayback();}}
- public void stopPlayback(){if(player!=null)player.stop();abandonFocus();session.setActive(false);stopForeground(true);foreground=false;stopSelf();}
+ public void stopPlayback(){stopped=true;if(player!=null)player.stop();abandonFocus();session.setActive(false);stopForeground(true);foreground=false;stopSelf();}
  private void updateSession(){if(session==null||player==null)return;int state=player.isPlaying()?PlaybackState.STATE_PLAYING:PlaybackState.STATE_PAUSED;if(player.getPlayerState()==org.videolan.libvlc.interfaces.IMedia.State.Error)state=PlaybackState.STATE_ERROR;
   session.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,title).putString(MediaMetadata.METADATA_KEY_ARTIST,"TucaTV").putLong(MediaMetadata.METADATA_KEY_DURATION,Math.max(0,player.getLength())).build());
   long actions=PlaybackState.ACTION_PLAY|PlaybackState.ACTION_PAUSE|PlaybackState.ACTION_PLAY_PAUSE|PlaybackState.ACTION_STOP|PlaybackState.ACTION_SKIP_TO_NEXT|PlaybackState.ACTION_SKIP_TO_PREVIOUS;if(player.isSeekable())actions|=PlaybackState.ACTION_SEEK_TO;
@@ -61,5 +64,5 @@ public class PlaybackService extends Service {
  private Notification notification(){Intent open=new Intent(this,PlayerActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);PendingIntent content=PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
   Notification.Builder builder=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"playback"):new Notification.Builder(this);return builder.setSmallIcon(R.drawable.tuca_beak).setContentTitle(title).setContentText("TucaTV · "+status).setContentIntent(content).setOngoing(player!=null&&player.isPlaying()).setOnlyAlertOnce(true).setVisibility(Notification.VISIBILITY_PUBLIC).addAction(android.R.drawable.ic_media_pause,player!=null&&player.isPlaying()?"Pausa":"Riproduci",action(TOGGLE,1)).addAction(android.R.drawable.ic_menu_close_clear_cancel,"Interrompi",action(STOP,2)).setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(0,1)).build();
  }
- @Override public void onDestroy(){main.removeCallbacksAndMessages(null);uiListener=null;try{unregisterReceiver(noisy);}catch(Exception e){}abandonFocus();if(player!=null){player.setEventListener(null);player.stop();player.detachViews();player.release();player=null;}if(engine!=null)engine.release();if(session!=null)session.release();super.onDestroy();}
+ @Override public void onDestroy(){if(current==this)current=null;main.removeCallbacksAndMessages(null);uiListener=null;try{unregisterReceiver(noisy);}catch(Exception e){}abandonFocus();if(player!=null){player.setEventListener(null);player.stop();player.detachViews();player.release();player=null;}if(engine!=null)engine.release();if(session!=null)session.release();super.onDestroy();}
 }

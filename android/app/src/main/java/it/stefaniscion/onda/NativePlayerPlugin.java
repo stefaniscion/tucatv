@@ -19,7 +19,7 @@ public class NativePlayerPlugin extends Plugin {
   textPool.execute(()->{java.net.HttpURLConnection connection=null;try{
    connection=(java.net.HttpURLConnection)new java.net.URL(value).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setRequestProperty("Accept-Encoding","identity");
    int status=connection.getResponseCode();if(status<200||status>=300){call.reject("La sorgente ha risposto con errore HTTP "+status);return;}
-   long total=connection.getContentLengthLong();if(connection.getContentEncoding()!=null)total=0;if(total<0)total=0;if(total>67108864){call.reject("La playlist supera il limite di 64 MB.");return;}
+   long total=connection.getContentLengthLong();if(connection.getContentEncoding()!=null)total=0;if(total<0)total=0;if(total>67108864){call.reject("La guida XMLTV supera il limite di 64 MB.");return;}
    progress(id,0,total);long last=0,start=android.os.SystemClock.elapsedRealtime();java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
    try(java.io.InputStream input=connection.getInputStream()){byte[] block=new byte[32768];int n;while((n=input.read(block))!=-1){if(bytes.size()+n>67108864)throw new java.io.IOException("limit");bytes.write(block,0,n);long now=android.os.SystemClock.elapsedRealtime();if(now-start>120000)throw new java.io.IOException("timeout");if(now-last>=100){progress(id,bytes.size(),total);last=now;}}}
    progress(id,bytes.size(),total);JSObject result=new JSObject();result.put("data",bytes.toString("UTF-8"));call.resolve(result);
@@ -34,7 +34,7 @@ public class NativePlayerPlugin extends Plugin {
    connection=(java.net.HttpURLConnection)new java.net.URL(value).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setRequestProperty("Accept-Encoding","identity");
    int status=connection.getResponseCode();if(status<200||status>=300){call.reject("La sorgente ha risposto con errore HTTP "+status);return;}
    long length=connection.getContentLengthLong();final long total=connection.getContentEncoding()==null&&length>0?length:0;
-   if(total>PlaylistTransfer.MAX_BYTES){call.reject("La playlist supera il limite di 64 MB.");return;}
+   if(total>PlaylistTransfer.MAX_BYTES){call.reject("La playlist supera il limite di 256 MB.");return;}
    file=java.io.File.createTempFile("playlist-",".tmp",new java.io.File(getContext().getCacheDir(),"playlist-import"));progress(id,0,total);
    long size;try(java.io.InputStream input=connection.getInputStream();java.io.OutputStream output=new java.io.FileOutputStream(file)){size=PlaylistTransfer.copy(input,output,n->progress(id,n,total));}
    if(total>0&&size!=total)throw new java.io.IOException("Download incompleto.");
@@ -69,6 +69,14 @@ public class NativePlayerPlugin extends Plugin {
   });
  }
 
+
+ private JSObject playbackState(){JSObject result=new JSObject();PlaybackService service=PlaybackService.current;boolean available=service!=null&&service.hasSession();result.put("available",available);if(available){result.put("title",service.title);result.put("playing",service.player.isPlaying());result.put("status",service.status);}return result;}
+ @Override protected void handleOnResume(){super.handleOnResume();notifyListeners("playbackState",playbackState());}
+ @PluginMethod public void getPlaybackState(PluginCall call){getActivity().runOnUiThread(()->call.resolve(playbackState()));}
+ @PluginMethod public void resumePlayback(PluginCall call){getActivity().runOnUiThread(()->{PlaybackService service=PlaybackService.current;if(service==null||!service.hasSession()){call.reject("Nessuna riproduzione in corso.");return;}Intent intent=new Intent(getActivity(),PlayerActivity.class);intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);getActivity().startActivity(intent);call.resolve();});}
+ @PluginMethod public void stopPlayback(PluginCall call){getActivity().runOnUiThread(()->{PlaybackService service=PlaybackService.current;if(service!=null)service.stopPlayback();call.resolve(playbackState());});}
+ @PluginMethod public void deviceInfo(PluginCall call){android.app.UiModeManager mode=(android.app.UiModeManager)getContext().getSystemService(android.content.Context.UI_MODE_SERVICE);JSObject result=new JSObject();result.put("tv",mode!=null&&mode.getCurrentModeType()==android.content.res.Configuration.UI_MODE_TYPE_TELEVISION);call.resolve(result);}
+ @PluginMethod public void exitToHome(PluginCall call){getActivity().runOnUiThread(()->{getActivity().moveTaskToBack(true);call.resolve();});}
  @PluginMethod public void play(PluginCall call) {
   String url=call.getString("url","");
   String scheme=Uri.parse(url).getScheme();

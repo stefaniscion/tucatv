@@ -16,7 +16,7 @@ def valid_url(value):
 
 def download(url, image=False, on_progress=None):
     valid_url(url)
-    limit = 2 * 1024 * 1024 if image else 64 * 1024 * 1024
+    limit = 2 * 1024 * 1024 if image else 256 * 1024 * 1024
     request = Request(url, headers={'Accept': 'image/*' if image else '*/*', 'User-Agent': 'TucaTV/0.5'})
     with urlopen(request, timeout=15) as response:
         valid_url(response.url)
