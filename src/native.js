@@ -1,13 +1,13 @@
-import {Capacitor,registerPlugin,CapacitorHttp} from '@capacitor/core';
+import {Capacitor,registerPlugin} from '@capacitor/core';
 export const isAndroid=Capacitor.getPlatform()==='android';
 export const isDesktop=location.protocol==='tucatv:';
 export const isNative=isAndroid||isDesktop;
 const androidPlayer=registerPlugin('NativePlayer');
 let bridgePromise;
-function desktopCall(method,payload){
+function desktopCall(method,payload,onProgress){
  bridgePromise ||= new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Collegamento desktop non disponibile')),10000);const connect=()=>{if(window.QWebChannel&&window.qt?.webChannelTransport){new window.QWebChannel(window.qt.webChannelTransport,ch=>{clearTimeout(timer);resolve(ch.objects.native);});}else setTimeout(connect,40);};connect();});
- return bridgePromise.then(bridge=>new Promise((resolve,reject)=>{const id=crypto.randomUUID();const timer=setTimeout(()=>{bridge.completed.disconnect(done);reject(Error('Tempo di attesa scaduto'));},45000);function done(requestId,json){if(requestId!==id)return;clearTimeout(timer);bridge.completed.disconnect(done);let result;try{result=JSON.parse(json);}catch{return reject(Error('Risposta desktop non valida'));}result.error?reject(Error(result.error)):resolve(result);};bridge.completed.connect(done);bridge.request(id,method,JSON.stringify(payload));}));
+ return bridgePromise.then(bridge=>new Promise((resolve,reject)=>{const id=crypto.randomUUID();function progress(requestId,received,total){if(requestId===id)onProgress?.({received,total,percent:total>0&&received<=total?Math.floor(received/total*100):null});}function clean(){bridge.completed.disconnect(done);if(onProgress)bridge.progress?.disconnect(progress);}const timer=setTimeout(()=>{clean();reject(Error('Tempo di attesa scaduto'));},180000);function done(requestId,json){if(requestId!==id)return;clearTimeout(timer);clean();let result;try{result=JSON.parse(json);}catch{return reject(Error('Risposta desktop non valida'));}result.error?reject(Error(result.error)):resolve(result);};bridge.completed.connect(done);if(onProgress)bridge.progress?.connect(progress);bridge.request(id,method,JSON.stringify(payload));}));
 }
 export const NativePlayer={play:payload=>isDesktop?desktopCall('play',payload):androidPlayer.play(payload)};
 export async function nativeImage(url){if(isDesktop)return (await desktopCall('image',{url})).data;return (await androidPlayer.image({url})).data;}
-export async function nativeText(url){if(isDesktop)return (await desktopCall('text',{url})).data;const r=await CapacitorHttp.get({url,responseType:'text',connectTimeout:20000,readTimeout:20000});if(r.status<200||r.status>=300)throw Error('Errore HTTP '+r.status);return typeof r.data==='string'?r.data:JSON.stringify(r.data);}
+export async function nativeText(url,onProgress){if(isDesktop)return (await desktopCall('text',{url},onProgress)).data;const requestId=crypto.randomUUID();let listener;try{if(onProgress)listener=await androidPlayer.addListener('downloadProgress',p=>{if(p.requestId===requestId)onProgress({received:p.received,total:p.total,percent:p.total>0&&p.received<=p.total?Math.floor(p.received/p.total*100):null});});return (await androidPlayer.text({url,requestId})).data;}finally{await listener?.remove();}}

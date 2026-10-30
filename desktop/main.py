@@ -58,6 +58,7 @@ class TrustedPage(QWebEnginePage):
 
 class Bridge(QObject):
     completed = Signal(str, str)
+    progress = Signal(str, float, float)
     def __init__(self, window):
         super().__init__(window); self.window = window; self.pool = ThreadPoolExecutor(max_workers=4)
     @Slot(str, str, str)
@@ -70,7 +71,7 @@ class Bridge(QObject):
             if method not in ('text', 'image'):
                 raise ValueError('Operazione non supportata')
             url = valid_url(payload.get('url'))
-            future = self.pool.submit(download, url, method == 'image')
+            future = self.pool.submit(download, url, method == 'image', (lambda received,total: self.progress.emit(request_id,received,total)) if method == 'text' else None)
             def done(task):
                 try: result = {'data': task.result()}
                 except Exception: result = {'error': 'Sorgente non disponibile o formato non valido'}

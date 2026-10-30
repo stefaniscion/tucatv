@@ -1,8 +1,8 @@
-# TucaTV Desktop 0.5 beta
+# TucaTV Desktop 0.6 beta
 
 Windows x64: estrarre tutta la cartella del pacchetto ZIP e avviare `Avvia TucaTV.bat`. Python 3.12.10, PySide6 6.8.3 e VLC 3.0.24 sono inclusi; nessun server e nessuna installazione VLC separata. Pacchetto portabile non firmato, assemblato su Linux; esecuzione Windows non verificata.
 
-Linux x64: pacchetto `.deb` costruito su Ubuntu 24.04, richiede glibc >= 2.39 (Ubuntu 24.04 o distribuzione Debian compatibile). Installare con `sudo apt install ./TucaTV-0.5-Linux-amd64.deb`, poi avviare TucaTV dal menu applicazioni. apt installa le librerie VLC e di sistema mancanti. Il rendering VLC usa X11/XWayland. Non eseguire come root e non disabilitare il sandbox Chromium. Nessuna prova effettuata su desktop Linux fisico, Wayland nativo non supportato da questo backend video.
+Linux x64: pacchetto `.deb` costruito su Ubuntu 24.04, richiede glibc >= 2.39 (Ubuntu 24.04 o distribuzione Debian compatibile). Installare con `sudo apt install ./TucaTV-0.6-Linux-amd64.deb`, poi avviare TucaTV dal menu applicazioni. apt installa le librerie VLC e di sistema mancanti. Il rendering VLC usa X11/XWayland. Non eseguire come root e non disabilitare il sandbox Chromium. Nessuna prova effettuata su desktop Linux fisico, Wayland nativo non supportato da questo backend video.
 
 Per altre distribuzioni: build dai sorgenti con Python 3.12, `pip install -r desktop/requirements.txt`, libVLC e plugin dal gestore pacchetti, `npm ci && npm run build`, copiare dist in desktop/web, poi `python desktop/main.py` (ambiente virtuale consigliato). Qt può richiedere pacchetti XCB, XTest, XKB e NSS.
 
@@ -15,3 +15,5 @@ UI Svelte/Tailwind condivisa, host Python/PySide6 e binding python-vlc. I compon
 
 ## Verifiche
 Test della validazione URL, limite dimensione immagini e rifiuto risposte HTML; test catalogo a 134388 voci; build web e compilazione Python. Queste verifiche non sostituiscono la prova di streaming sui dispositivi e sulla rete del fornitore.
+
+Importazione: avanzamento byte per byte nei download nativi, lettura a blocchi dei canali e attesa del salvataggio. La percentuale di download compare solo se Content-Length è disponibile; altrimenti vengono mostrati i byte ricevuti.
