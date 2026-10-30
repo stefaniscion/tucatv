@@ -12,7 +12,8 @@ public class NativePlayerPlugin extends Plugin {
   getActivity().runOnUiThread(()->{
    try{
     Intent intent=new Intent(getActivity(),PlayerActivity.class);
-    intent.putExtra("url",url);intent.putExtra("title",call.getString("title","ONDA"));
+    intent.putExtra("url",url);intent.putExtra("title",call.getString("title","TucaTV"));
+    intent.putExtra("queue",call.getArray("queue",new JSArray()).toString());intent.putExtra("index",call.getInt("index",0));
     getActivity().startActivity(intent);call.resolve();
    }catch(Exception e){call.reject("Impossibile aprire il player nativo");}
   });
