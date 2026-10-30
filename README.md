@@ -9,7 +9,7 @@ Requires Node 20+, JDK 17, Android SDK 34, build tools 34.
 - cd android && ./gradlew :app:assembleDebug
 
 The debug APK targets ARM64 and ARMv7 Android devices. It is a development build, not a Play Store release. Import your playlist again inside the app: browser and Android storage are separate.
-Streams open in an integrated libVLC Activity. HTTP is allowed for user-supplied IPTV sources. Back returns to the channel list; pause/play and retry are available. Playlist URL downloads use Capacitor's native HTTP implementation. Data is stored in IndexedDB.
+Streams open in an integrated libVLC Activity. HTTP is allowed for user-supplied IPTV sources. Back returns to the channel list; pause/play and retry are available. Playlist URL downloads use a native HTTP bridge with a private temporary file and bounded chunks. Data is stored in IndexedDB.
 No playlist credentials are embedded in the app. Android backups are disabled.
 
 ## Browser
@@ -44,3 +44,10 @@ Il player in errore non usa più il rapporto d'aspetto insieme a un'altezza mini
 
 ## Versione 0.6 — Avanzamento importazione
 Barra condivisa per file, link e aggiornamento playlist: trasferimento (byte ricevuti, percentuale soltanto con dimensione nota), lettura M3U (percentuale di righe e canali trovati), salvataggio IndexedDB (indeterminato), conferma solo dopo il salvataggio. I download browser, Android e desktop emettono progressi reali. Il parser cede periodicamente il controllo alla UI; i download sono limitati a 64 MiB. In caso di errore di aggiornamento la playlist salvata non viene sostituita. Gli URL privati non compaiono nell'indicatore. Test streaming UTF-8 spezzato, dimensione ignota, limite dimensione, metadati e avanzamento incrementale.
+
+## Versione 0.7 — Importazione con memoria ridotta
+- Android scarica la playlist nella cache privata: restituisce solo un handle e la dimensione, poi trasferisce blocchi da 64 KiB alla WebView. Il file temporaneo viene eliminato dopo l'importazione o un errore, al prossimo import e all'avvio dopo una chiusura imprevista. Nessun file completo serializzato in un messaggio JSON.
+- Parser M3U incrementale per file/browser/Android, UTF-8 conservato fra blocchi, limite totale 64 MiB e singola riga 64 KiB. Le righe non vengono più raccolte in un array completo. Su browser download e lettura avanzano insieme.
+- Raccolte Svelte non profondamente reattive, salvataggio IndexedDB senza conversione JSON intermedia. Le raccolte si aggiornano per sostituzione. Un errore lascia intatta la playlist precedentemente salvata.
+- Browser: rilevamento HTTP da pagina HTTPS; errori di rete/CORS spiegati senza attribuire una causa non verificata. Link per apertura separata e importazione file; nessun proxy e nessuna disabilitazione della sicurezza.
+- Verifiche: 14 test JavaScript; trasferimento Java di 50 MiB con heap di 16 MiB, limite dimensione e interruzione; parser di 140.000 voci / 47,2 MiB con heap Node limitato a 128 MiB; importazione e salvataggio della stessa playlist nella UI browser. Build Android verificata. Il crash sul telefono dell'utente non è stato riprodotto con logcat: la pressione di memoria è una causa plausibile corretta, da verificare installando l'APK aggiornato.

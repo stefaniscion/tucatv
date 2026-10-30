@@ -11,3 +11,14 @@ function desktopCall(method,payload,onProgress){
 export const NativePlayer={play:payload=>isDesktop?desktopCall('play',payload):androidPlayer.play(payload)};
 export async function nativeImage(url){if(isDesktop)return (await desktopCall('image',{url})).data;return (await androidPlayer.image({url})).data;}
 export async function nativeText(url,onProgress){if(isDesktop)return (await desktopCall('text',{url},onProgress)).data;const requestId=crypto.randomUUID();let listener;try{if(onProgress)listener=await androidPlayer.addListener('downloadProgress',p=>{if(p.requestId===requestId)onProgress({received:p.received,total:p.total,percent:p.total>0&&p.received<=p.total?Math.floor(p.received/p.total*100):null});});return (await androidPlayer.text({url,requestId})).data;}finally{await listener?.remove();}}
+// The playlist stays in private cache. Only bounded chunks cross the WebView bridge.
+export async function nativePlaylist(url,onProgress){
+ const requestId=crypto.randomUUID();let listener;
+ try{
+  listener=await androidPlayer.addListener('downloadProgress',p=>{if(p.requestId===requestId)onProgress?.({received:p.received,total:p.total,percent:p.total>0&&p.received<=p.total?Math.floor(p.received/p.total*100):null});});
+  const {handle,size}=await androidPlayer.downloadPlaylist({url,requestId});let closed=false;
+  const dispose=async()=>{if(!closed){closed=true;await androidPlayer.closePlaylist({handle});}};
+  const stream=new ReadableStream({async pull(controller){try{const part=await androidPlayer.readPlaylistChunk({handle});if(part.done){controller.close();await dispose();}else{const raw=atob(part.data);controller.enqueue(Uint8Array.from(raw,c=>c.charCodeAt(0)));}}catch(error){controller.error(error);await dispose();}},cancel:dispose},{highWaterMark:0});
+  return {stream,total:size,dispose};
+ }finally{await listener?.remove();}
+}

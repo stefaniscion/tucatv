@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {playlistResponse,browserNetworkError} from '../src/playlist-network.js';
+test('HTTPS page explains HTTP constraint without issuing fetch',async()=>{let called=false;await assert.rejects(playlistResponse('http://example.test/list',{pageProtocol:'https:',fetcher:()=>{called=true;}}),/Carica file/);assert.equal(called,false);});
+test('network errors explain uncertainty and preserve HTTP response codes',async()=>{await assert.rejects(playlistResponse('https://example.test/list',{pageProtocol:'https:',fetcher:()=>{throw new TypeError('Failed to fetch');}}),/CORS/);await assert.rejects(playlistResponse('https://example.test/list',{pageProtocol:'https:',fetcher:async()=>({ok:false,status:403})}),/403/);assert.match(browserNetworkError({name:'TimeoutError'}).message,/scaduto/);});
