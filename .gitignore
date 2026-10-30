@@ -1,0 +1,62 @@
+# Dependencies and build output
+node_modules/
+dist/
+artifacts/
+coverage/
+*.tsbuildinfo
+# Native generated files
+.gradle/
+**/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor*.json
+android/app/src/main/res/xml/config.xml
+# Signing material: never commit, including renamed copies
+signing/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*signing-backup*
+keystore.properties
+# Local credentials and playlists
+.env
+.env.*
+!.env.example
+*.m3u
+*.m3u8
+!tests/fixtures/*.m3u
+!tests/fixtures/*.m3u8
+google-services.json
+# Installers / compiled output
+*.apk
+*.aab
+*.ap_
+*.aar
+*.dex
+*.class
+*.deb
+*.exe
+*.msi
+# Python and desktop packaging
+.venv/
+venv/
+.desktop-venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+desktop-output/
+desktop-work/
+desktop/web/
+# Editors / OS / logs
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+*.log
+# Hosting metadata belongs to the deployment, not this distribution
+.openai/
