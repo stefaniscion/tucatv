@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ONDA</string>
+    <string name="title_activity_main">ONDA</string>
+    <string name="package_name">it.stefaniscion.onda</string>
+    <string name="custom_url_scheme">it.stefaniscion.onda</string>
+</resources>
