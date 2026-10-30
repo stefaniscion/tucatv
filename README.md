@@ -27,3 +27,11 @@ https://www.videolan.org/vlc/libvlc.html
 Capacitor, Svelte, Tailwind CSS, idb-keyval and hls.js retain their respective upstream licenses.
 
 Brand: black background, orange accents, vector toucan beak. Native package ID and storage keys retain the old internal name for upgrade continuity. Native player: overlay controls, audio/subtitle selection, seek when supported, fit/fill, and a local channel window (up to 50 preceding/following channels; return to the list for further navigation).
+
+## Versione 0.4
+Intro TucaTV animata e saltabile (rispetta reduced motion), cataloghi Live e VOD con righe per categoria, ricerca completa e vista elenco. Classificazione euristica da estensione, percorso /movie|series|vod/ e gruppo; M3U non fornisce sempre un tipo affidabile. Nessun recupero di metadati esterno. Le righe mostrano fino a 20 titoli per 12 categorie: «Vedi tutti», filtro categoria e ricerca mantengono accessibile tutta la raccolta. Test automatico su 134388 voci sintetiche.
+
+Web: HLS nativo preferito quando disponibile anche in modalità forzata, timeout di avvio 20 secondi, errori nel player e download locale del singolo stream M3U per VLC. Le sorgenti HTTP su hosting HTTPS non vengono avviate: il gestore deve fornire HTTPS. Nessun proxy e nessuna riscrittura automatica degli URL con credenziali. CORS e codec devono essere compatibili con il browser. Il file esportato contiene l'URL privato della sorgente. Android continua a usare libVLC.
+
+### Correzione layout player web
+Il player in errore non usa più il rapporto d'aspetto insieme a un'altezza minima per determinare la larghezza: il messaggio entra nel flusso e cresce in verticale. Larghezza vincolata al contenitore, pulsanti a capo e controlli superiori accessibili. Messaggio HTTP esplicita il controllo preventivo dell'app, senza attribuirlo a una richiesta fallita osservata nel browser.
