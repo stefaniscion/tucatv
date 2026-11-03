@@ -842,7 +842,7 @@
             <span class="dot"></span>
             {$t('Everything on your device')}
             <p>{$t('No account. Just your TV.')}</p>
-            <small>{$t('TucaTV / VERSION 1.13.1')}</small>
+            <small>{$t('TucaTV / VERSION 1.13.2')}</small>
         </div>
     </aside>
     <main>

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { directionalTarget, pageWindow } from '../src/tv-navigation.js';
 const rect = (x, y, width = 100, height = 50) => ({ x, y, width, height });
 test('directional focus follows aligned rows and columns and stops at edges', () => {
@@ -19,4 +20,12 @@ test('TV pages remain bounded and recover from shrinking playlist', () => {
     assert.deepEqual(pageWindow(140000, 0), { index: 0, pages: 5834, start: 0, end: 24 });
     assert.deepEqual(pageWindow(25, 9), { index: 1, pages: 2, start: 24, end: 25 });
     assert.deepEqual(pageWindow(0, 99), { index: 0, pages: 1, start: 0, end: 0 });
+});
+test('Android TV player avoids DecorView-dependent insets APIs during startup', () => {
+    const source = readFileSync(
+        new URL('../android/app/src/main/java/it/stefaniscion/tucatv/PlayerActivity.java', import.meta.url),
+        'utf8',
+    );
+    assert.doesNotMatch(source, /getInsetsController|setDecorFitsSystemWindows|WindowInsetsController/);
+    assert.match(source, /SYSTEM_UI_FLAG_IMMERSIVE_STICKY/);
 });
