@@ -27,7 +27,7 @@
         "saxes": "^6.0.0",
         "svelte": "^5.0.0",
         "tailwindcss": "^4.0.0",
-        "vite": "^6.0.0",
+        "vite": "^8.3.5",
         "xz-decompress": "^0.2.3"
     },
     "private": true,
