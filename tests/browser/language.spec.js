@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+test.beforeEach(async({page})=>{await page.addInitScript(()=>{if(!localStorage.getItem('tucatv-epg-settings'))localStorage.setItem('tucatv-epg-settings',JSON.stringify({automatic:false,disabled:[]}));});});
 async function start(page){await page.goto('/');await page.getByRole('button',{name:'Salta intro'}).click();}
 test('settings language switches immediately and survives reload; device mode follows languagechange',async({page})=>{
  await start(page);
@@ -18,7 +19,7 @@ test('settings language switches immediately and survives reload; device mode fo
  await expect(page.getByRole('combobox',{name:'Language',exact:true})).toHaveValue('device');
 });
 test('unsupported device languages fall back to English',async({browser})=>{
- const context=await browser.newContext({locale:'fr-FR'});const page=await context.newPage();
+ const context=await browser.newContext({locale:'fr-FR'});await context.addInitScript(()=>localStorage.setItem('tucatv-epg-settings',JSON.stringify({automatic:false})));const page=await context.newPage();
  await page.goto('http://127.0.0.1:4173/');await page.getByRole('button',{name:'Skip intro'}).click();
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  await expect(page.getByRole('combobox',{name:'Language',exact:true})).toHaveValue('device');await context.close();

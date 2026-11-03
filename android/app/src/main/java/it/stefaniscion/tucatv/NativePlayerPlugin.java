@@ -24,17 +24,19 @@ public class NativePlayerPlugin extends Plugin {
  @PluginMethod public void closeQueue(PluginCall call){textPool.execute(()->{PlaybackQueue queue=takeQueue(call.getString("handle",""));if(queue!=null)queue.close();call.resolve();});}
 
  private final java.util.concurrent.ExecutorService textPool=java.util.concurrent.Executors.newSingleThreadExecutor();
+ private final java.util.concurrent.ExecutorService downloadPool=java.util.concurrent.Executors.newFixedThreadPool(2);
  private final java.util.concurrent.ExecutorService imagePool=java.util.concurrent.Executors.newFixedThreadPool(4);
+ private volatile boolean downloadsClosed=false;
  private final java.util.Map<String,java.io.File> playlistFiles=new java.util.concurrent.ConcurrentHashMap<>();
  private final java.util.Map<String,java.io.InputStream> playlistStreams=new java.util.concurrent.ConcurrentHashMap<>();
  @Override public void load(){if(PlaybackService.current==null&&PlaybackService.preparedQueues.isEmpty()){java.io.File qdir=new java.io.File(getContext().getCacheDir(),"playback-queues");java.io.File[] old=qdir.listFiles();if(old!=null)for(java.io.File q:old)q.delete();}java.io.File dir=new java.io.File(getContext().getCacheDir(),"playlist-import");dir.mkdirs();java.io.File[] stale=dir.listFiles();if(stale!=null)for(java.io.File f:stale)f.delete();}
  private void closePlaylistHandle(String handle){java.io.InputStream input=playlistStreams.remove(handle);if(input!=null)try{input.close();}catch(java.io.IOException ignored){}java.io.File file=playlistFiles.remove(handle);if(file!=null)file.delete();}
- @Override protected void handleOnDestroy(){for(String handle:playlistFiles.keySet())closePlaylistHandle(handle);imagePool.shutdownNow();textPool.shutdownNow();for(PlaybackQueue queue:queues.values())queue.close();queues.clear();super.handleOnDestroy();}
+ @Override protected synchronized void handleOnDestroy(){downloadsClosed=true;for(String handle:playlistFiles.keySet())closePlaylistHandle(handle);imagePool.shutdownNow();downloadPool.shutdownNow();textPool.shutdownNow();for(PlaybackQueue queue:queues.values())queue.close();queues.clear();super.handleOnDestroy();}
  private void progress(String id,long received,long total){JSObject event=new JSObject();event.put("requestId",id);event.put("received",received);event.put("total",total);notifyListeners("downloadProgress",event);}
  @PluginMethod public void text(PluginCall call){
   String value=call.getString("url","");String id=call.getString("requestId","");
   if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("URL non valido"));return;}
-  textPool.execute(()->{java.net.HttpURLConnection connection=null;try{
+  downloadPool.execute(()->{java.net.HttpURLConnection connection=null;try{
    connection=(java.net.HttpURLConnection)new java.net.URL(value).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setRequestProperty("Accept-Encoding","identity");
    int status=connection.getResponseCode();if(status<200||status>=300){call.reject(tr("La sorgente ha risposto con errore HTTP ")+status);return;}
    long total=connection.getContentLengthLong();if(connection.getContentEncoding()!=null)total=0;if(total<0)total=0;if(total>67108864){call.reject(tr("La guida XMLTV supera il limite di 64 MB."));return;}
@@ -47,9 +49,9 @@ public class NativePlayerPlugin extends Plugin {
  @PluginMethod public void downloadPlaylist(PluginCall call){
   String value=call.getString("url","");String id=call.getString("requestId","");
   if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("URL non valido"));return;}
-  textPool.execute(()->{java.net.HttpURLConnection connection=null;java.io.File file=null;String handle=null;boolean retained=false;try{
-   // Only one import is kept; abandoned handles cannot accumulate large cache files.
-   for(String old:playlistFiles.keySet())closePlaylistHandle(old);
+  downloadPool.execute(()->{java.net.HttpURLConnection connection=null;java.io.File file=null;String handle=null;boolean retained=false;try{
+   // Playlist import and EPG downloads may overlap; never invalidate another reader.
+   if(playlistFiles.size()>=4)throw new java.io.IOException("Too many downloads");
    connection=(java.net.HttpURLConnection)new java.net.URL(value).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setRequestProperty("Accept-Encoding","identity");
    int status=connection.getResponseCode();if(status<200||status>=300){call.reject(tr("La sorgente ha risposto con errore HTTP ")+status);return;}
    long length=connection.getContentLengthLong();final long total=connection.getContentEncoding()==null&&length>0?length:0;
@@ -57,7 +59,7 @@ public class NativePlayerPlugin extends Plugin {
    file=java.io.File.createTempFile("playlist-",".tmp",new java.io.File(getContext().getCacheDir(),"playlist-import"));progress(id,0,total);
    long size;try(java.io.InputStream input=connection.getInputStream();java.io.OutputStream output=new java.io.FileOutputStream(file)){size=PlaylistTransfer.copy(input,output,n->progress(id,n,total));}
    if(total>0&&size!=total)throw new java.io.IOException("Download incompleto.");
-   handle=java.util.UUID.randomUUID().toString();playlistFiles.put(handle,file);playlistStreams.put(handle,new java.io.FileInputStream(file));
+   synchronized(this){if(downloadsClosed||playlistFiles.size()>=4)throw new java.io.IOException("Downloads closed or full");handle=java.util.UUID.randomUUID().toString();playlistFiles.put(handle,file);playlistStreams.put(handle,new java.io.FileInputStream(file));}
    JSObject result=new JSObject();result.put("handle",handle);result.put("size",size);call.resolve(result);retained=true;
   }catch(Exception error){call.reject(tr("Download della playlist non riuscito. Controlla connessione, spazio disponibile e validità del link."));}
   finally{if(connection!=null)connection.disconnect();if(!retained){if(handle!=null)closePlaylistHandle(handle);if(file!=null)file.delete();}}});

@@ -67,3 +67,15 @@ class TransferTests(unittest.TestCase):
   with patch('network.urlopen',return_value=Reply(b'data','text/plain')):
    with self.assertRaises(ValueError):store.download('https://example.test/list')
   self.assertEqual(store.files,{})
+
+class ConcurrentTransferTests(unittest.TestCase):
+ def test_epg_download_does_not_invalidate_playlist_reader(self):
+  from network import PlaylistDownloads
+  import base64
+  store=PlaylistDownloads()
+  try:
+   with patch('network.urlopen',return_value=Reply(b'playlist','text/plain')):first=store.download('https://example.test/list')
+   with patch('network.urlopen',return_value=Reply(b'guide','text/plain')):second=store.download('https://example.test/guide')
+   self.assertEqual(base64.b64decode(store.read(first['handle'])['data']),b'playlist')
+   self.assertEqual(base64.b64decode(store.read(second['handle'])['data']),b'guide')
+  finally:store.shutdown()

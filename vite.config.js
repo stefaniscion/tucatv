@@ -13,4 +13,4 @@ const localeAssets={
   }
  }
 };
-export default defineConfig({plugins:[svelte(),tailwind(),localeAssets]});
+export default defineConfig({optimizeDeps:{include:['xz-decompress','saxes']},plugins:[svelte(),tailwind(),localeAssets]});

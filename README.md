@@ -2,7 +2,7 @@
 
 Client-side IPTV player with a shared Svelte 5 / Tailwind CSS 4 interface. Supports M3U files and URLs, XMLTV, Live/VOD browsing, favorites, hidden categories and TV remote navigation.
 
-**Version:** 0.11.0. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
+**Version:** 0.12.0. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
 
 ## Web
 
@@ -42,7 +42,7 @@ For a signed release, run from the repository root:
 npm run android:release
 ```
 
-Output: `artifacts/android/TucaTV-0.11.0.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
+Output: `artifacts/android/TucaTV-0.12.0.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
 
 Signing inputs are excluded from Git. Android application ID: `it.stefaniscion.tucatv`.
 
@@ -91,6 +91,7 @@ Run validation locally; no CI workflows are configured. Streaming, audio routing
 ## Source layout
 
 - `src/`: Svelte interface, playlist parsing, storage and playback adapters.
+- `src/epg/`: bundled Rytec registry, background imports, streaming XMLTV parser and indexed guide cache.
 - `android/`: Capacitor host, libVLC player and background playback service.
 - `desktop/`: PySide6 host, libVLC integration and desktop packaging.
 - `scripts/`: Android signing and desktop asset preparation.
@@ -100,7 +101,11 @@ Run validation locally; no CI workflows are configured. Streaming, audio routing
 
 Catalogues, shelves, playlist collections and category management load progressively. Scrolling reveals more items; the load-more control supports remote/keyboard navigation. Existing items stay mounted as the list grows.
 
-XMLTV loads independently of playlist refresh and keeps a local fallback in IndexedDB. Local XML imports are also retained. The last channel is recorded after playback starts; native zapping updates it, and the hero respects the selected Live/VOD mode.
+Settings → Manage EPG enables all 56 bundled Rytec sources by default. Sources update sequentially at startup when missing or older than 24 hours, and are checked hourly while the app is visible. Users can disable automatic updates or individual sources, update manually, stop a run, inspect errors and clear the Rytec cache. Downloads try the mirrors listed in the bundled catalogue; availability is not guaranteed. Browser CORS and mixed-content restrictions still apply.
+
+Rytec XMLTV is decompressed (XZ/gzip) and parsed in a worker, then stored in IndexedDB in bounded batches. Limits are 256 MiB per downloaded/decompressed source and 32 KiB per title/description. All channels are imported, retaining programmes from the past day through the next 14 days. Only current/next entries for active playlist IDs are loaded into the UI. A complete validated generation replaces the previous guide; failed imports preserve cached data. Abandoned generations are cleaned at startup.
+
+Playlist-specific XMLTV URLs and local XML imports (64 MiB limit) are managed in Settings → Manage EPG and take precedence over Rytec. Existing playlist guides and local imports are retained. Channel matching uses exact M3U `tvg-id` / XMLTV channel IDs. The last channel is recorded after playback starts; native zapping updates it, and the hero respects the selected Live/VOD mode.
 
 Native playlist downloads use temporary files and 64 KiB bridge reads. Playback queues are uploaded in bounded batches to private temporary files, then read by index during zapping, including Android background playback. The full catalogue still resides in JavaScript memory; the 256 MiB import cap is not a RAM bound.
 
@@ -117,3 +122,7 @@ Run `npm test`, `npm run test:ui` and `python -m unittest discover -s desktop/te
 Version metadata is defined in `package.json`, `package-lock.json`, Android `versionCode`/`versionName` and the UI version. Android signing is configured through the environment variables listed above.
 
 No open-source license has been selected for the original code. Third-party components retain their own licenses.
+
+## Rytec catalogue
+
+`src/epg/rytec.json` is a snapshot of [oe-alliance/EPGImport-Sources](https://github.com/oe-alliance/EPGImport-Sources/blob/main/rytec.sources.xml), retrieved 2026-11-03. It contains all 56 source descriptions and their mirror URLs (55 unique primary feeds). Source IDs must remain stable to retain preferences/cache. XZ decompression uses the bundled MIT-licensed `xz-decompress` WebAssembly decoder; no external decoder or application server is needed.

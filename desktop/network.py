@@ -20,7 +20,7 @@ def valid_url(value):
 
 def transfer(url, sink, limit, on_progress=None):
     valid_url(url)
-    request = Request(url, headers={'Accept-Encoding': 'identity', 'User-Agent': 'TucaTV/0.11.0'})
+    request = Request(url, headers={'Accept-Encoding': 'identity', 'User-Agent': 'TucaTV/0.12.0'})
     with urlopen(request, timeout=15) as response:
         valid_url(response.url)
         # urllib does not decompress responses. Reject unsolicited encoding rather
@@ -73,8 +73,7 @@ class PlaylistDownloads:
             stream.seek(0)
             with self.lock:
                 if self.closed: raise ValueError('Host chiuso')
-                for old in self.files.values(): old.close()
-                self.files.clear()
+                if len(self.files) >= 4: raise ValueError('Troppe importazioni simultanee')
                 handle = str(uuid.uuid4()); self.files[handle] = stream
             return {'handle': handle, 'size': size}
         except BaseException:

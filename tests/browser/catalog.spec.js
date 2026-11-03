@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+test.beforeEach(async({page})=>{await page.addInitScript(()=>{if(!localStorage.getItem('tucatv-epg-settings'))localStorage.setItem('tucatv-epg-settings',JSON.stringify({automatic:false,disabled:[]}));});});
 
 const channels=(count=160)=>Array.from({length:count},(_,i)=>({name:'Canale '+i,group:'Categoria '+i,tvg:'channel-'+i,url:'https://example.test/live/'+i,logo:'https://example.test/logo.svg'}));
 const list=(id,items,extra={})=>({id,name:'Lista '+id,channels:items,source:'',epg:'',updated:Date.now(),...extra});
@@ -61,8 +62,12 @@ test(`EPG loads on boot (${source?'failed refresh':'local playlist'}) and retain
  await page.route('https://example.test/guide.xml',route=>route.fulfill({contentType:'text/xml',headers:{'access-control-allow-origin':'*'},body:guide('Programma remoto')}));
  await seed(page,[list('a',channels(1),{source,epg:'https://example.test/guide.xml'})]);
  await expect(page.locator('.hero-content')).toContainText('Programma remoto');
- const input=page.locator('.epgbutton input');await expect(input).toBeVisible();
+ await expect(page.locator('.epgbutton input')).toHaveCount(0);
+ await page.getByRole('button',{name:'Impostazioni',exact:true}).click();await page.getByRole('button',{name:'Gestione EPG'}).click();
+ const input=page.locator('.epg-upload input');await expect(input).toBeVisible();
  await input.setInputFiles({name:'guide.xml',mimeType:'text/xml',buffer:Buffer.from(guide('Programma locale'))});
+ await expect(page.getByText('Guida TV caricata.',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Catalogo',exact:true}).click();
  await expect(page.locator('.hero-content')).toContainText('Programma locale');
  await page.route('https://example.test/guide.xml',route=>route.fulfill({status:503,headers:{'access-control-allow-origin':'*'},body:'Unavailable'}));
  await page.reload();await page.getByRole('button',{name:'Salta intro'}).click();
@@ -113,3 +118,20 @@ test('disabling startup refresh preserves saved channels without downloading the
  await expect(page.getByRole('status').filter({hasText:'Playlist aggiornata'})).toBeVisible();
  expect(requests).toBe(1);
 });
+
+for(const width of [390,1280]){
+ test(`wide logos and tall posters fit above badges at ${width}px`,async({page},testInfo)=>{
+  await page.setViewportSize({width,height:800});
+  const items=[...channels(1),{name:'Poster alto',kind:'vod',group:'Film',tvg:'',url:'https://example.test/movie/1',logo:'https://example.test/tall.svg'}];
+  await page.route('https://example.test/tall.svg',r=>r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="600"><rect x="3" y="3" width="194" height="594" fill="orange" stroke="white" stroke-width="6"/></svg>'}));
+  await seed(page,[list('a',items)]);
+  for(const mode of ['live','vod']){
+   if(mode==='vod')await page.getByRole('button',{name:'Film e serie'}).click();
+   const art=page.locator('.media-art').first();await art.scrollIntoViewIfNeeded();await expect(art.locator('img')).toBeVisible();
+   const outer=await art.boundingBox(),frame=await art.locator('.logo-frame').boundingBox(),image=await art.locator('img').boundingBox(),badge=await art.locator('.media-type').boundingBox();
+   expect(image.height).toBeGreaterThan(15);expect(image.y).toBeGreaterThanOrEqual(frame.y);expect(image.y+image.height).toBeLessThanOrEqual(frame.y+frame.height+1);expect(image.x+image.width).toBeLessThanOrEqual(outer.x+outer.width);expect(image.y+image.height).toBeLessThan(badge.y);expect(badge.y+badge.height).toBeLessThanOrEqual(outer.y+outer.height);
+   expect(await art.locator('img').evaluate(el=>getComputedStyle(el).objectFit)).toBe('contain');
+   await art.screenshot({path:testInfo.outputPath(`art-${width}-${mode}.png`)});
+  }
+ });
+}
