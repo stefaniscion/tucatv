@@ -5,13 +5,13 @@ const channels=(count=160)=>Array.from({length:count},(_,i)=>({name:'Canale '+i,
 const list=(id,items,extra={})=>({id,name:'Lista '+id,channels:items,source:'',epg:'',updated:Date.now(),...extra});
 const stamp=t=>new Date(t).toISOString().replace(/[-:T]/g,'').slice(0,14)+' +0000';
 const guide=title=>`<tv><programme channel="channel-0" start="${stamp(Date.now()-60000)}" stop="${stamp(Date.now()+3600000)}"><title>${title}</title></programme></tv>`;
-async function seed(page,lists,lastOpened={}){
+async function seed(page,lists,lastOpened={},favorites=[]){
  await page.route('https://example.test/logo.svg',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80"><rect width="100" height="80" fill="orange"/></svg>'}));
  await page.goto('/');
- await page.evaluate(async({lists,lastOpened})=>{
+ await page.evaluate(async({lists,lastOpened,favorites})=>{
   const db=await new Promise((resolve,reject)=>{const request=indexedDB.open('keyval-store',1);request.onupgradeneeded=()=>request.result.createObjectStore('keyval');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
-  await new Promise((resolve,reject)=>{const tx=db.transaction('keyval','readwrite');tx.objectStore('keyval').put({lists,favorites:[]},'tucatv');tx.objectStore('keyval').put(lastOpened,'tuca-last-opened');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();
- },{lists,lastOpened});
+  await new Promise((resolve,reject)=>{const tx=db.transaction('keyval','readwrite');tx.objectStore('keyval').put({lists,favorites},'tucatv');tx.objectStore('keyval').put(lastOpened,'tuca-last-opened');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();
+ },{lists,lastOpened,favorites});
  await page.reload();await page.getByRole('button',{name:'Salta intro'}).click();
  await expect(page.getByRole('combobox',{name:'Playlist'})).toBeVisible();
 }
@@ -54,6 +54,12 @@ test('artwork is above its badge and the hero respects Live/VOD',async({page},te
  const image=await art.locator('.logo-frame').boundingBox(),badge=await art.locator('.media-type').boundingBox();
  expect(image.y+image.height).toBeLessThanOrEqual(badge.y+1);
  await page.screenshot({path:testInfo.outputPath('catalog.png')});
+});
+
+test('favorites appear in the first shelf below the hero',async({page})=>{
+ const items=channels(3);await seed(page,[list('a',items)],{},[items[1].url]);
+ const firstShelf=page.locator('.shelf').first();await expect(firstShelf.getByRole('heading',{name:'Preferiti'})).toBeVisible();await expect(firstShelf.locator('.media-open')).toHaveCount(1);await expect(firstShelf.locator('.media-open h3')).toHaveText(items[1].name);
+ await firstShelf.getByRole('button',{name:'Vedi tutti'}).click();await expect(page.locator('.tv-tile')).toHaveCount(1);
 });
 
 for(const source of ['', 'https://example.test/missing.m3u']){
@@ -117,6 +123,14 @@ test('disabling startup refresh preserves saved channels without downloading the
  await page.getByRole('button',{name:'Aggiorna',exact:true}).click();
  await expect(page.getByRole('status').filter({hasText:'Playlist aggiornata'})).toBeVisible();
  expect(requests).toBe(1);
+});
+
+test('playlist progress opens list management with the remote keyboard',async({page})=>{
+ let release;const gate=new Promise(resolve=>release=resolve);
+ await page.route('https://example.test/playlist.m3u',async route=>{await gate;await route.fulfill({body:'#EXTM3U\n#EXTINF:-1,Updated\nhttps://example.test/live/new'});});
+ await seed(page,[list('a',channels(1),{source:'https://example.test/playlist.m3u'})]);
+ const progress=page.getByRole('link',{name:'Avanzamento caricamento playlist'});await expect(progress).toBeVisible();await progress.focus();await page.keyboard.press('Enter');await expect(page.getByRole('heading',{name:'Le mie playlist'})).toBeVisible();
+ const response=page.waitForResponse('https://example.test/playlist.m3u');release();await response;await expect(progress).toContainText('Playlist aggiornate');
 });
 
 for(const width of [390,1280]){

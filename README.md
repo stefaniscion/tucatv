@@ -2,7 +2,7 @@
 
 Client-side IPTV player with a shared Svelte 5 / Tailwind CSS 4 interface. Supports M3U files and URLs, XMLTV, Live/VOD browsing, favorites, hidden categories and TV remote navigation.
 
-**Version:** 0.12.2. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
+**Version:** 1.12.3. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
 
 ## Web
 
@@ -42,7 +42,7 @@ For a signed release, run from the repository root:
 npm run android:release
 ```
 
-Output: `artifacts/android/TucaTV-0.12.2.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
+Output: `artifacts/android/TucaTV-1.12.3.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
 
 Signing inputs are excluded from Git. Android application ID: `it.stefaniscion.tucatv`.
 
@@ -113,7 +113,7 @@ Native playlist downloads use temporary files and 64 KiB bridge reads. Playback 
 
 Italian and English use shared catalogues in `src/locales/`. The Settings page applies language changes immediately and stores `tucatv-language` locally. The default Device language option follows supported device languages, falling back to English; Italian and English can be selected explicitly. Settings also persist playlist refresh at startup (enabled by default), initial catalogue view and initial Live/VOD section in `tucatv-settings`; startup options apply on the next launch. Provider names, categories and XMLTV content are not translated.
 
-`src/i18n.js` provides reactive translations, interpolation and localizable errors. Catalogue keys use the original Italian source text; keep keys and placeholder names identical in both JSON files. Vite copies these catalogues to `dist/locales/`; Android and desktop read them alongside the web assets. Their language preference is synchronized through the native bridge, including Android playback notifications. System-owned file pickers follow the OS language.
+`src/i18n.js` provides reactive translations, interpolation and localizable errors. Catalogue keys use the English source text; the English catalogue maps each key to itself, while other catalogues provide translations with identical placeholder names. Vite copies these catalogues to `dist/locales/`; Android and desktop read them alongside the web assets. The default preference follows the device language. Language changes are synchronized through the native bridge, including Android playback notifications. System-owned file pickers follow the OS language.
 
 Run `npm test`, `npm run test:ui` and `python -m unittest discover -s desktop/tests -p 'test_i18n.py'` after changing translations. Run the normal web build and Capacitor sync or desktop preparation to update native assets.
 

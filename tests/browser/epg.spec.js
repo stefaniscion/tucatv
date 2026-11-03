@@ -43,7 +43,7 @@ test('sources are searchable and progressive; cancellation leaves no published p
  await page.getByRole('button',{name:/Carica altre sorgenti/}).click();await expect(page.locator('.epg-source')).toHaveCount(48);
  await page.getByRole('searchbox',{name:'Cerca sorgenti EPG'}).fill('Italia');await expect(page.locator('.epg-source')).toHaveCount(3);
  await page.getByRole('button',{name:'Aggiorna EPG ora'}).click();
- const progress=page.getByRole('region',{name:'Avanzamento aggiornamento EPG'});await expect(progress).toBeVisible();await expect(progress).toContainText('0 / 56');await expect(progress).toContainText(sources[0].name);
- await page.getByRole('button',{name:'Catalogo',exact:true}).click();await expect(progress).toBeVisible();
- await settings(page);await page.getByRole('button',{name:'Interrompi aggiornamento'}).click();await expect(page.getByRole('button',{name:'Aggiorna EPG ora'})).toBeEnabled();await expect(progress).toBeHidden();expect(await counts(page)).toBe(0);
+ const progress=page.getByRole('link',{name:'Avanzamento aggiornamento EPG'});await expect(progress).toBeVisible();await expect(progress).toContainText('0 / 56');await expect(progress).toContainText(sources[0].name);
+ await page.getByRole('button',{name:'Catalogo',exact:true}).click();await expect(progress).toBeVisible();await progress.focus();await page.keyboard.press('Enter');await expect(page.getByRole('button',{name:'Aggiorna EPG ora'})).toBeVisible();
+ await page.getByRole('button',{name:'Interrompi aggiornamento'}).click();await expect(page.getByRole('button',{name:'Aggiorna EPG ora'})).toBeEnabled();await expect(progress).toBeHidden();expect(await counts(page)).toBe(0);
 });

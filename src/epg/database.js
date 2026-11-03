@@ -11,7 +11,7 @@ export function database(){
   request.onsuccess=()=>resolve(request.result);request.onerror=()=>{connection=null;reject(request.error);};
  });
 }
-const complete=tx=>new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||Error('EPG_STORAGE'));tx.onerror=()=>{};});
+const complete=tx=>new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||Error('Unable to save EPG data. Check available storage.'));tx.onerror=()=>{};});
 export async function metadata(){const db=await database();return new Promise((resolve,reject)=>{const r=db.transaction('sources').objectStore('sources').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
 export async function writeBatch(generation,items){const db=await database(),tx=db.transaction('programmes','readwrite');const done=complete(tx);for(const p of items)tx.objectStore('programmes').put({...p,generation});await done;}
 export async function commitSource(source){const db=await database(),tx=db.transaction('sources','readwrite');const done=complete(tx);tx.objectStore('sources').put(source);await done;}

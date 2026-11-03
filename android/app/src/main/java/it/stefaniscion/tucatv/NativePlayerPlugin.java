@@ -14,13 +14,13 @@ public class NativePlayerPlugin extends Plugin {
   for(PlaybackQueue queue:queues.values())queue.close();queues.clear();
   String handle=java.util.UUID.randomUUID().toString();queues.put(handle,new PlaybackQueue(new java.io.File(getContext().getCacheDir(),"playback-queues")));
   JSObject result=new JSObject();result.put("handle",handle);call.resolve(result);
- }catch(Exception e){call.reject(tr("Impossibile preparare la coda."));}});}
+ }catch(Exception e){call.reject(tr("Unable to prepare the playback queue."));}});}
  @PluginMethod public void appendQueue(PluginCall call){textPool.execute(()->{try{
   PlaybackQueue queue=queues.get(call.getString("handle",""));if(queue==null)throw new IllegalArgumentException();
   JSArray items=call.getArray("items",new JSArray());if(items.length()>100)throw new IllegalArgumentException();
   for(int i=0;i<items.length();i++){org.json.JSONObject item=items.getJSONObject(i);String scheme=Uri.parse(item.optString("url")).getScheme();if(!"http".equals(scheme)&&!"https".equals(scheme))throw new IllegalArgumentException();queue.append(item.toString());}
   call.resolve();
- }catch(Exception e){call.reject(tr("Coda non valida."));}});}
+ }catch(Exception e){call.reject(tr("Invalid playback queue."));}});}
  @PluginMethod public void closeQueue(PluginCall call){textPool.execute(()->{PlaybackQueue queue=takeQueue(call.getString("handle",""));if(queue!=null)queue.close();call.resolve();});}
 
  private final java.util.concurrent.ExecutorService textPool=java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -35,45 +35,45 @@ public class NativePlayerPlugin extends Plugin {
  private void progress(String id,long received,long total){JSObject event=new JSObject();event.put("requestId",id);event.put("received",received);event.put("total",total);notifyListeners("downloadProgress",event);}
  @PluginMethod public void text(PluginCall call){
   String value=call.getString("url","");String id=call.getString("requestId","");
-  if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("URL non valido"));return;}
+  if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("Invalid URL"));return;}
   downloadPool.execute(()->{java.net.HttpURLConnection connection=null;try{
    connection=HttpRequest.open(value,15000,30000,"text/xml, text/plain;q=0.9, application/octet-stream;q=0.8");
-   int status=connection.getResponseCode();if(status<200||status>=300){call.reject(tr("La sorgente ha risposto con errore HTTP ")+status);return;}
-   long total=connection.getContentLengthLong();if(connection.getContentEncoding()!=null)total=0;if(total<0)total=0;if(total>67108864){call.reject(tr("La guida XMLTV supera il limite di 64 MB."));return;}
+   int status=connection.getResponseCode();if(status<200||status>=300){call.reject(tr("The source returned HTTP ")+status);return;}
+   long total=connection.getContentLengthLong();if(connection.getContentEncoding()!=null)total=0;if(total<0)total=0;if(total>67108864){call.reject(tr("The XMLTV guide exceeds the 64 MB limit."));return;}
    progress(id,0,total);long last=0,start=android.os.SystemClock.elapsedRealtime();java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
    try(java.io.InputStream input=connection.getInputStream()){byte[] block=new byte[32768];int n;while((n=input.read(block))!=-1){if(bytes.size()+n>67108864)throw new java.io.IOException("limit");bytes.write(block,0,n);long now=android.os.SystemClock.elapsedRealtime();if(now-start>120000)throw new java.io.IOException("timeout");if(now-last>=100){progress(id,bytes.size(),total);last=now;}}}
    if(total>0&&bytes.size()!=total)throw new java.io.IOException("Download incompleto");
    progress(id,bytes.size(),total);JSObject result=new JSObject();result.put("data",bytes.toString("UTF-8"));call.resolve(result);
-  }catch(Exception e){call.reject(tr("Download non riuscito: controlla connessione, dimensione del file e accesso alla sorgente."));}finally{if(connection!=null)connection.disconnect();}});
+  }catch(Exception e){call.reject(tr("Download failed: check the connection, file size and access to the source."));}finally{if(connection!=null)connection.disconnect();}});
  }
  @PluginMethod public void downloadPlaylist(PluginCall call){
   String value=call.getString("url","");String id=call.getString("requestId","");
-  if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("URL non valido"));return;}
+  if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("Invalid URL"));return;}
   downloadPool.execute(()->{java.net.HttpURLConnection connection=null;java.io.File file=null;String handle=null;boolean retained=false;try{
    // Playlist import and EPG downloads may overlap; never invalidate another reader.
    if(playlistFiles.size()>=4)throw new java.io.IOException("Too many downloads");
    connection=HttpRequest.open(value,15000,30000,"application/octet-stream, application/x-xz, application/xml;q=0.9, text/xml;q=0.9");
-   int status=connection.getResponseCode();if(status<200||status>=300){call.reject(tr("La sorgente ha risposto con errore HTTP ")+status);return;}
+   int status=connection.getResponseCode();if(status<200||status>=300){call.reject(tr("The source returned HTTP ")+status);return;}
    long length=connection.getContentLengthLong();final long total=connection.getContentEncoding()==null&&length>0?length:0;
-   if(total>PlaylistTransfer.MAX_BYTES){call.reject(tr("La playlist supera il limite di 256 MB."));return;}
+   if(total>PlaylistTransfer.MAX_BYTES){call.reject(tr("The playlist exceeds the 256 MB limit."));return;}
    file=java.io.File.createTempFile("playlist-",".tmp",new java.io.File(getContext().getCacheDir(),"playlist-import"));progress(id,0,total);
    long size;try(java.io.InputStream input=connection.getInputStream();java.io.OutputStream output=new java.io.FileOutputStream(file)){size=PlaylistTransfer.copy(input,output,n->progress(id,n,total));}
    if(total>0&&size!=total)throw new java.io.IOException("Download incompleto.");
    synchronized(this){if(downloadsClosed||playlistFiles.size()>=4)throw new java.io.IOException("Downloads closed or full");handle=java.util.UUID.randomUUID().toString();playlistFiles.put(handle,file);playlistStreams.put(handle,new java.io.FileInputStream(file));}
    JSObject result=new JSObject();result.put("handle",handle);result.put("size",size);call.resolve(result);retained=true;
-  }catch(Exception error){call.reject(tr("Download della playlist non riuscito. Controlla connessione, spazio disponibile e validità del link."));}
+  }catch(Exception error){call.reject(tr("Playlist download failed. Check the connection, available space and link validity."));}
   finally{if(connection!=null)connection.disconnect();if(!retained){if(handle!=null)closePlaylistHandle(handle);if(file!=null)file.delete();}}});
  }
  @PluginMethod public void readPlaylistChunk(PluginCall call){String handle=call.getString("handle","");textPool.execute(()->{try{
-  java.io.InputStream input=playlistStreams.get(handle);if(input==null){call.reject(tr("Importazione scaduta: riprova."));return;}
+  java.io.InputStream input=playlistStreams.get(handle);if(input==null){call.reject(tr("Import expired: please try again."));return;}
   byte[] block=new byte[65536];int count=input.read(block);JSObject result=new JSObject();result.put("done",count==-1);
   if(count>0)result.put("data",android.util.Base64.encodeToString(block,0,count,android.util.Base64.NO_WRAP));
   call.resolve(result);
- }catch(Exception error){closePlaylistHandle(handle);call.reject(tr("Lettura della playlist non riuscita."));}});}
+ }catch(Exception error){closePlaylistHandle(handle);call.reject(tr("Unable to read the playlist."));}});}
  @PluginMethod public void closePlaylist(PluginCall call){String handle=call.getString("handle","");textPool.execute(()->{closePlaylistHandle(handle);call.resolve();});}
  @PluginMethod public void image(PluginCall call){
   String value=call.getString("url","");
-  if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("URL logo non valido"));return;}
+  if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("Invalid logo URL"));return;}
   imagePool.execute(()->{
    java.net.HttpURLConnection connection=null;
    try{
@@ -85,7 +85,7 @@ public class NativePlayerPlugin extends Plugin {
     java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
     try(java.io.InputStream stream=connection.getInputStream()){byte[] block=new byte[8192];int n;while((n=stream.read(block))!=-1){if(bytes.size()+n>2097152)throw new java.io.IOException();bytes.write(block,0,n);}}
     JSObject result=new JSObject();result.put("data","data:"+type+";base64,"+android.util.Base64.encodeToString(bytes.toByteArray(),android.util.Base64.NO_WRAP));call.resolve(result);
-   }catch(Exception e){call.reject(tr("Logo non disponibile"));}finally{if(connection!=null)connection.disconnect();}
+   }catch(Exception e){call.reject(tr("Logo unavailable"));}finally{if(connection!=null)connection.disconnect();}
   });
  }
 
@@ -93,14 +93,14 @@ public class NativePlayerPlugin extends Plugin {
  private JSObject playbackState(){JSObject result=new JSObject();PlaybackService service=PlaybackService.current;boolean available=service!=null&&service.hasSession();result.put("available",available);if(available){result.put("title",service.title);result.put("playing",service.player.isPlaying());result.put("status",tr(service.status));}android.content.SharedPreferences saved=getContext().getSharedPreferences("playback-history",0);String owner=saved.getString("playlistId","");if(!owner.isEmpty()){JSObject last=new JSObject();last.put("playlistId",owner);last.put("url",saved.getString("url",""));last.put("at",saved.getLong("at",0));result.put("lastPlayed",last);}return result;}
  @Override protected void handleOnResume(){super.handleOnResume();notifyListeners("playbackState",playbackState());}
  @PluginMethod public void getPlaybackState(PluginCall call){getActivity().runOnUiThread(()->call.resolve(playbackState()));}
- @PluginMethod public void resumePlayback(PluginCall call){getActivity().runOnUiThread(()->{PlaybackService service=PlaybackService.current;if(service==null||!service.hasSession()){call.reject(tr("Nessuna riproduzione in corso."));return;}Intent intent=new Intent(getActivity(),PlayerActivity.class);intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);getActivity().startActivity(intent);call.resolve();});}
+ @PluginMethod public void resumePlayback(PluginCall call){getActivity().runOnUiThread(()->{PlaybackService service=PlaybackService.current;if(service==null||!service.hasSession()){call.reject(tr("No playback in progress."));return;}Intent intent=new Intent(getActivity(),PlayerActivity.class);intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);getActivity().startActivity(intent);call.resolve();});}
  @PluginMethod public void stopPlayback(PluginCall call){getActivity().runOnUiThread(()->{PlaybackService service=PlaybackService.current;if(service!=null)service.stopPlayback();call.resolve(playbackState());});}
  @PluginMethod public void deviceInfo(PluginCall call){android.app.UiModeManager mode=(android.app.UiModeManager)getContext().getSystemService(android.content.Context.UI_MODE_SERVICE);JSObject result=new JSObject();result.put("tv",mode!=null&&mode.getCurrentModeType()==android.content.res.Configuration.UI_MODE_TYPE_TELEVISION);call.resolve(result);}
  @PluginMethod public void exitToHome(PluginCall call){getActivity().runOnUiThread(()->{getActivity().moveTaskToBack(true);call.resolve();});}
  @PluginMethod public void play(PluginCall call) {
   String url=call.getString("url","");
   String scheme=Uri.parse(url).getScheme();
-  if(!"http".equals(scheme)&&!"https".equals(scheme)){call.reject(tr("URL non supportato"));return;}
+  if(!"http".equals(scheme)&&!"https".equals(scheme)){call.reject(tr("Unsupported URL"));return;}
   getActivity().runOnUiThread(()->{
    try{
     Intent intent=new Intent(getActivity(),PlayerActivity.class);
@@ -112,7 +112,7 @@ public class NativePlayerPlugin extends Plugin {
     intent.putExtra("queueHandle",token);intent.putExtra("playlistId",call.getString("playlistId",""));intent.putExtra("index",call.getInt("index",0));
     try{getActivity().startActivity(intent);}catch(Exception error){PlaybackService.preparedQueues.remove(token);queue.close();throw error;}
     call.resolve();
-   }catch(Exception e){call.reject(tr("Impossibile aprire il player nativo"));}
+   }catch(Exception e){call.reject(tr("Unable to open the native player"));}
   });
  }
 }

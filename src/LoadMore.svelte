@@ -1,7 +1,7 @@
 <script>
  import {t,locale} from './i18n.js';
  import {onMount} from 'svelte';
- let {remaining,onmore,label='Carica altri'}=$props();
+ let {remaining,onmore,label='Load more'}=$props();
  let button;
  onMount(()=>{
   if(!('IntersectionObserver' in window))return;
@@ -12,4 +12,4 @@
   return()=>observer.disconnect();
  });
 </script>
-<button class="load-more" bind:this={button} onclick={()=>onmore(true)}>{$t(label)} · {remaining.toLocaleString($locale)} {$t("rimanenti")}</button>
+<button class="load-more" bind:this={button} onclick={()=>onmore(true)}>{$t(label)} · {remaining.toLocaleString($locale)} {$t("remaining")}</button>

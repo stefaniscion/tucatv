@@ -10,16 +10,16 @@
  $effect(()=>{items;limit=24;});
  async function more(focus=false){const first=shown.length;limit+=24;await tick();if(focus)focusControl(host?.querySelectorAll('.tv-tile')[first]);}
 </script>
-<section class="tv-catalog" bind:this={host} aria-label={$t("Catalogo per telecomando")}>
- <p class="catalog-count" role="status">{shown.length} {$t("di")} {items.length.toLocaleString($locale)} {$t("titoli")}</p>
+<section class="tv-catalog" bind:this={host} aria-label={$t("Remote control catalogue")}>
+ <p class="catalog-count" role="status">{shown.length} {$t("of")} {items.length.toLocaleString($locale)} {$t("items")}</p>
  <div class="tv-grid">
  {#each shown as c,i}
-  <article class="tv-card"><button class="tv-tile" data-tv-tile={i} onclick={()=>play(c)} aria-label={$t("Riproduci ")+c.name}>
+  <article class="tv-card"><button class="tv-tile" data-tv-tile={i} onclick={()=>play(c)} aria-label={$t("Play ")+c.name}>
    <span class="tv-logo"><Logo src={c.logo} name={c.name}/></span><span class="tv-title"><strong>{c.name}</strong><small>{now(c)?.title||c.group}</small></span>
-  </button><button class="tv-favorite" aria-label={(favorites.includes(c.url)?$t("Rimuovi dai preferiti: "):$t("Aggiungi ai preferiti: "))+c.name} aria-pressed={favorites.includes(c.url)} onclick={()=>favorite(c)}>{favorites.includes(c.url)?'♥':'♡'}</button></article>
+  </button><button class="tv-favorite" aria-label={(favorites.includes(c.url)?$t("Remove from favorites: "):$t("Add to favorites: "))+c.name} aria-pressed={favorites.includes(c.url)} onclick={()=>favorite(c)}>{favorites.includes(c.url)?'♥':'♡'}</button></article>
  {/each}
  </div>
  {#if shown.length<items.length}{#key shown.length}<LoadMore remaining={items.length-shown.length} onmore={more}/>{/key}{/if}
- {#if !items.length}<p class="empty">{$t("Nessun titolo trovato. Cambia categoria o ricerca.")}</p>{/if}
- <p class="tv-help">{$t("Frecce: sposta la selezione · OK: apri · Indietro: torna al menu")}</p>
+ {#if !items.length}<p class="empty">{$t("No items found. Change the category or search.")}</p>{/if}
+ <p class="tv-help">{$t("Arrows: move selection · OK: open · Back: return to menu")}</p>
 </section>

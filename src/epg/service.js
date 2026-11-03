@@ -4,6 +4,13 @@ import {isNative,nativePlaylist} from '../native.js';
 import {metadata,commitSource,deleteGeneration,cleanOrphans,clearGuides,lookupGuide} from './database.js';
 export {sources,lookupGuide};
 const DAY=86400000,MAX_BYTES=256*1024*1024;
+const EPG_ERRORS=new Set([
+ 'Invalid or unsupported XMLTV/XZ file.','The guide contains no valid programmes.','The guide contains no recent programmes.',
+ 'Unable to save EPG data. Check available storage.','The guide exceeds the 256 MiB limit or contains an oversized field.',
+ 'EPG update stopped.','This HTTP source cannot be loaded from an HTTPS page. Use the installed app.',
+ 'The source returned an HTTP error.','Download failed. Check the connection and, in the browser, CORS permissions.',
+ 'Native download failed. Check the connection or try another mirror.','The download is incomplete.'
+]);
 function preferences(){try{const value=JSON.parse(localStorage.getItem('tucatv-epg-settings'));return {automatic:value?.automatic!==false,disabled:Array.isArray(value?.disabled)?value.disabled.filter(id=>sources.some(s=>s.id===id)):[]};}catch{return {automatic:true,disabled:[]};}}
 export const epgPreferences=writable(preferences());
 export const epgState=writable({running:false,source:'',completed:0,total:0,received:0,bytes:0,count:0,phase:'',records:{},errors:{},revision:0});
@@ -19,56 +26,56 @@ async function loadMetadata(){const records=Object.fromEntries((await metadata()
 export async function startEpg(){
  if(initialized)return;initialized=true;
  ready=(async()=>{await cleanOrphans();await loadMetadata();})();
- try{await ready;}catch{patch({phase:'EPG_STORAGE'});return;}
+ try{await ready;}catch{patch({phase:'Unable to save EPG data. Check available storage.'});return;}
  if(storeValue(epgPreferences).automatic)void refreshEpg(false);
  autoTimer=setInterval(()=>{if(!document.hidden&&storeValue(epgPreferences).automatic)void refreshEpg(false);},3600000);
 }
 export function disposeEpg(){clearInterval(autoTimer);controller?.abort();}
-export function cancelEpg(){controller?.abort();patch({phase:'EPG_STOPPING'});}
+export function cancelEpg(){controller?.abort();patch({phase:'Stopping the update… The current download may need to finish.'});}
 export async function clearEpg(){if(task)return;await clearGuides();patch({records:{},errors:{}});await loadMetadata();}
 async function openStream(url,signal){
- if(signal.aborted)throw Error('EPG_CANCELLED');
+ if(signal.aborted)throw Error('EPG update stopped.');
  if(isNative){
-  try{const download=await nativePlaylist(url,p=>patch({received:p.received}));if(signal.aborted){await download.dispose();throw Error('EPG_CANCELLED');}return download;}
-  catch(error){if(signal.aborted||error?.message==='EPG_CANCELLED')throw Error('EPG_CANCELLED');throw Error('EPG_NATIVE_NETWORK');}
+  try{const download=await nativePlaylist(url,p=>patch({received:p.received}));if(signal.aborted){await download.dispose();throw Error('EPG update stopped.');}return download;}
+  catch(error){if(signal.aborted||error?.message==='EPG update stopped.')throw Error('EPG update stopped.');throw Error('Native download failed. Check the connection or try another mirror.');}
  }
- if(location.protocol==='https:'&&new URL(url).protocol==='http:')throw Error('EPG_MIXED');
+ if(location.protocol==='https:'&&new URL(url).protocol==='http:')throw Error('This HTTP source cannot be loaded from an HTTPS page. Use the installed app.');
  try{
-  const response=await fetch(url,{signal});if(!response.ok)throw Error('EPG_HTTP');if(!response.body)throw Error('EPG_NETWORK');
+  const response=await fetch(url,{signal});if(!response.ok)throw Error('The source returned an HTTP error.');if(!response.body)throw Error('Download failed. Check the connection and, in the browser, CORS permissions.');
   return {stream:response.body,total:response.headers.get('content-encoding')?0:Number(response.headers.get('content-length'))||0,dispose:async()=>{}};
- }catch(error){if(signal.aborted)throw Error('EPG_CANCELLED');throw /^EPG_/.test(error.message)?error:Error('EPG_NETWORK');}
+ }catch(error){if(signal.aborted)throw Error('EPG update stopped.');throw EPG_ERRORS.has(error.message)?error:Error('Download failed. Check the connection and, in the browser, CORS permissions.');}
 }
 async function importStream(download,generation,signal){
  const reader=download.stream.getReader();let worker,total=download.total,received=0;
- const read=async()=>{const part=await reader.read();if(!part.done){received+=part.value.byteLength;if(received>MAX_BYTES)throw Error('EPG_LIMIT');}else if(total&&received!==total)throw Error('EPG_TRUNCATED');return part;};
+ const read=async()=>{const part=await reader.read();if(!part.done){received+=part.value.byteLength;if(received>MAX_BYTES)throw Error('The guide exceeds the 256 MiB limit or contains an oversized field.');}else if(total&&received!==total)throw Error('The download is incomplete.');return part;};
  try{
-  if(total>MAX_BYTES)throw Error('EPG_LIMIT');
+  if(total>MAX_BYTES)throw Error('The guide exceeds the 256 MiB limit or contains an oversized field.');
   // A stream may split its signature across multiple chunks.
   let prefix=new Uint8Array();
   while(prefix.length<6){const part=await read();if(part.done)break;const next=new Uint8Array(prefix.length+part.value.length);next.set(prefix);next.set(part.value,prefix.length);prefix=next;}
   const format=prefix[0]===0xfd&&prefix[1]===0x37&&prefix[2]===0x7a&&prefix[3]===0x58&&prefix[4]===0x5a&&prefix[5]===0?'xz':prefix[0]===0x1f&&prefix[1]===0x8b?'gzip':'xml';
-  if(signal.aborted)throw Error('EPG_CANCELLED');
+  if(signal.aborted)throw Error('EPG update stopped.');
   worker=new Worker(new URL('./import.worker.js',import.meta.url),{type:'module'});
   const result=await new Promise((resolve,reject)=>{
    let first=true,settled=false;
-   const abort=()=>finish(Error('EPG_CANCELLED'));
+   const abort=()=>finish(Error('EPG update stopped.'));
    function finish(error,result){if(settled)return;settled=true;signal.removeEventListener('abort',abort);error?reject(error):resolve(result);}
    signal.addEventListener('abort',abort,{once:true});
-   worker.onerror=()=>finish(Error('EPG_XML'));
+   worker.onerror=()=>finish(Error('Invalid or unsupported XMLTV/XZ file.'));
    worker.onmessage=async({data})=>{
     if(settled)return;
     if(data.type==='pull'){
      try{const part=first?{value:prefix,done:false}:await read();first=false;if(settled)return;
       if(part.done)worker.postMessage({type:'chunk',done:true});else{const bytes=part.value.slice();worker.postMessage({type:'chunk',buffer:bytes.buffer},[bytes.buffer]);}
      }catch(error){finish(error);}
-    }else if(data.type==='progress')patch({bytes:data.bytes,count:data.count,phase:'EPG_PARSING'});
+    }else if(data.type==='progress')patch({bytes:data.bytes,count:data.count,phase:'Reading and saving the guide…'});
     else if(data.type==='done')finish(null,data);
     else if(data.type==='error')finish(Error(data.error));
    };
    worker.postMessage({type:'start',generation,format,now:Date.now()});
   });
   // XZ may finish before requesting EOF; validate the underlying transfer too.
-  const tail=await read();if(!tail.done)throw Error('EPG_XML');
+  const tail=await read();if(!tail.done)throw Error('Invalid or unsupported XMLTV/XZ file.');
   return result;
  }finally{worker?.terminate();await reader.cancel().catch(()=>{});reader.releaseLock();await download.dispose();}
 }
@@ -78,12 +85,12 @@ async function run(force){
  const pending=enabled.filter(s=>force||!records[s.id]||Date.now()-records[s.id].updated>=DAY);
  if(!pending.length)return;
  controller=new AbortController();const signal=controller.signal;
- patch({running:true,completed:0,total:pending.length,errors:{},phase:'EPG_DOWNLOADING'});
+ patch({running:true,completed:0,total:pending.length,errors:{},phase:'Downloading the guide…'});
  let completed=0;
  try{
   for(const source of pending){
    if(signal.aborted)break;
-   patch({source:source.name,received:0,bytes:0,count:0,phase:'EPG_DOWNLOADING'});
+   patch({source:source.name,received:0,bytes:0,count:0,phase:'Downloading the guide…'});
    let failure;
    for(const url of source.urls){
     if(signal.aborted)break;
@@ -93,7 +100,7 @@ async function run(force){
     try{
      const download=await openStream(url,attempt.signal);
      const result=await importStream(download,generation,attempt.signal);
-     if(signal.aborted)throw Error('EPG_CANCELLED');
+     if(signal.aborted)throw Error('EPG update stopped.');
      const record={id:source.id,generation,updated:Date.now(),count:result.count};
      await commitSource(record);
      // Publish only a completely validated guide. Keep previous generations on errors.
@@ -103,12 +110,12 @@ async function run(force){
      failure=null;break;
     }catch(error){
      await deleteGeneration(generation).catch(()=>{});
-     failure=signal.aborted?'EPG_CANCELLED':attempt.signal.aborted?'EPG_TIMEOUT':/^EPG_/.test(error.message)?error.message:error.name==='QuotaExceededError'?'EPG_STORAGE':'EPG_NETWORK';
+     failure=signal.aborted?'EPG update stopped.':attempt.signal.aborted?'The source timed out.':EPG_ERRORS.has(error.message)?error.message:error.name==='QuotaExceededError'?'Unable to save EPG data. Check available storage.':'Download failed. Check the connection and, in the browser, CORS permissions.';
     }finally{clearTimeout(timeout);signal.removeEventListener('abort',abort);}
    }
    if(signal.aborted)break;
    completed++;epgState.update(s=>({...s,completed,errors:failure?{...s.errors,[source.id]:failure}:s.errors}));
   }
- }finally{patch({running:false,source:'',phase:signal.aborted?'EPG_CANCELLED':'EPG_FINISHED'});controller=null;}
+ }finally{patch({running:false,source:'',phase:signal.aborted?'EPG update stopped.':'EPG update finished. Check source statuses below.'});controller=null;}
 }
-export function refreshEpg(force=true){if(task)return task;task=run(force).catch(()=>patch({running:false,phase:'EPG_STORAGE'})).finally(()=>task=null);return task;}
+export function refreshEpg(force=true){if(task)return task;task=run(force).catch(()=>patch({running:false,phase:'Unable to save EPG data. Check available storage.'})).finally(()=>task=null);return task;}
