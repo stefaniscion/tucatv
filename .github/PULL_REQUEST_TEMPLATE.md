@@ -1,8 +1,5 @@
-## Problema e risultato
+## Change
 
-## Verifiche eseguite
+## Validation
 
-## Limiti / piattaforme non provate
-
-- [ ] Nessuna chiave, playlist privata o output di build incluso
-- [ ] Focus telecomando e comportamento touch considerati
+## Untested platforms or limitations

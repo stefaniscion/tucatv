@@ -1,28 +1,17 @@
 # TucaTV
 
-Player IPTV **client-side** per playlist M3U, con interfaccia Svelte 5 / Tailwind CSS 4 condivisa fra browser, Android e desktop Windows/Linux. Tema nero/arancione, catalogo Live/VOD e navigazione TV-first.
+Client-side IPTV player with a shared Svelte 5 / Tailwind CSS 4 interface. Supports M3U files and URLs, XMLTV, Live/VOD browsing, favorites, hidden categories and TV remote navigation.
 
-Versione applicativa: **0.9.1**. Questo repository contiene i sorgenti, non playlist o abbonamenti IPTV.
+**Version:** 0.9.1. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
 
-## Funzioni
+## Web
 
-- Importazione M3U da file o URL, con avanzamento e limite di 256 MiB.
-- Aggiornamento delle playlist da URL all'avvio, conservando la copia precedente se la rete fallisce.
-- Categorie, ricerca, preferiti, categorie nascondibili e ultimo canale aperto per playlist.
-- Guida XMLTV, se disponibile; il mancato caricamento dell'EPG non impedisce lo streaming.
-- Android: player libVLC, servizio di riproduzione, notifica, ritorno al player e Picture-in-Picture quando supportato.
-- Desktop: host Python/PySide6 con libVLC e interfaccia locale, senza server HTTP.
-
-## Avvio rapido web
-
-Prerequisiti: Node.js 22 e npm, Git.
+Requirements: Node.js 22–24 and npm.
 
 ```sh
 npm ci
 npm run dev
 ```
-
-Apri l'indirizzo mostrato da Vite. Per la produzione:
 
 ```sh
 npm test
@@ -30,35 +19,81 @@ npm run build
 npm run preview
 ```
 
-Pubblica `dist/` su un hosting statico. Nessun backend dell'app è richiesto. La variante browser rimane soggetta a HTTPS/mixed content, CORS e codec supportati: non equivale al player VLC nativo.
+Deploy `dist/` to a static host. Browser playback requires compatible codecs, HTTPS and CORS permissions. Playlist import is limited to 256 MiB; actual memory requirements depend on the device.
 
-## Build e documentazione
+## Android / Android TV
 
-- [Guida di build web, Android, Windows e Linux](docs/BUILD.md)
-- [Architettura, dati e limiti](docs/ARCHITECTURE.md)
-- [Firma APK e gestione della chiave](docs/SIGNING.md)
-- [Versioni e rilascio](docs/RELEASING.md)
-- [Cronologia delle funzionalità](CHANGELOG.md)
-- [Contribuire e verificare le modifiche](CONTRIBUTING.md)
-- [Sicurezza e segnalazioni](SECURITY.md)
-- [Dipendenze e licenze](THIRD_PARTY_NOTICES.md)
+Requirements: JDK 17, Android SDK Platform 34, Build Tools 34.0.0, Platform Tools and Python 3.12. Configure `JAVA_HOME` and `ANDROID_HOME`, and accept the SDK licenses.
 
-## Stato delle piattaforme
+```sh
+npm ci
+npm run android:sync
+cd android
+./gradlew :app:assembleDebug
+```
 
-| Piattaforma | Implementazione | Limiti di verifica |
-| --- | --- | --- |
-| Browser | Svelte + video HTML/HLS.js | Solo sorgenti compatibili con il browser |
-| Android / Android TV | Capacitor 6 + libVLC 3.6.0, ARM64/ARMv7 | Build verificata; notch, telecomando, audio e PiP richiedono prove hardware |
-| Windows x64 | Python/PySide6 + VLC | Host presente; build e avvio vanno verificati su Windows |
-| Linux x64 | Python/PySide6 + VLC, pacchetto Debian | Rendering X11/XWayland; provare sulla distribuzione target |
-| iOS, Tizen, webOS | Non implementati | Nessun pacchetto disponibile |
+On Windows use `gradlew.bat`. Debug output: `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-Il riconoscimento Live/VOD è euristico: i casi ambigui restano Live. Un genere come “Cinema” non indica da solo un VOD. Il limite di 256 MiB non garantisce che ogni dispositivo abbia memoria sufficiente per qualsiasi catalogo.
+For a signed release, run from the repository root:
 
-## Repository e chiave
+```sh
+npm run android:release
+```
 
-I tag `v0.1.0`–`v0.9.1` ricostruiscono le versioni disponibili; vedi [provenienza](docs/RELEASING.md). Autore e committer: Stefano Di Pasquale <stefaniscion@gmail.com>.
+Output: `artifacts/android/TucaTV-0.9.1.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
 
-L'archivio privato di consegna include `.git/` e `signing/`. **La cartella `signing/` non è tracciata da Git** e non viene trasferita da clone/push. Contiene materiale riservato: non pubblicare l'archivio ZIP di consegna. Per condividere i sorgenti usa Git oppure `git archive`.
+**Signing files are private and ignored by Git.** The delivery archive includes the existing 0.9.x key; cloning the bundle alone does not copy it. Keep a private backup and never publish the delivery archive. Release updates must retain the same application ID (`it.stefaniscion.onda`) and signing key. Debug APKs use a different key.
 
-Non è stata scelta una licenza open source per il codice originale. Vedi [LICENSE](LICENSE); i componenti di terze parti conservano le proprie licenze.
+## Windows / Linux
+
+Requirements: Python 3.12, Node.js and matching-architecture VLC/libVLC. Install Qt/XCB dependencies on Linux; the video backend uses X11/XWayland.
+
+```sh
+python -m venv .venv
+# Linux:
+. .venv/bin/activate
+# Windows PowerShell instead:
+# .\.venv\Scripts\Activate.ps1
+python -m pip install -r desktop/requirements.txt
+npm ci
+npm run desktop:prepare
+python desktop/main.py
+```
+
+Linux Debian package (Ubuntu 24.04 x64 with `dpkg-dev` and native dependencies):
+
+```sh
+bash desktop/build-linux.sh
+```
+
+Windows directory build, run on Windows after building the web interface:
+
+```powershell
+python -m PyInstaller --noconfirm --clean --name TucaTV --windowed --add-data "dist;web" --distpath desktop-output --workpath desktop-work --specpath desktop-work desktop/main.py
+```
+
+Distribute the entire output directory. This command does not bundle VLC; install VLC x64 on the target PC or package its runtime separately. Desktop installers are unsigned and require platform testing.
+
+## Tests and releases
+
+```sh
+npm test
+npm run build
+python -m unittest discover -s desktop/tests -p 'test_network.py'
+```
+
+CI checks web tests/build and unsigned Android builds. Hardware checks are still required for streaming, audio, PiP, cutouts and remote navigation. Current dependencies retain known deprecation warnings; this repository is not a security audit.
+
+Version tags `v0.1.0` through `v0.9.1` contain 11 reconstructed release snapshots. Intermediate fixes within each version were consolidated; generated output and hosting metadata were excluded. Repository-maintenance commits follow the release snapshots. Author and committer: **Stefano Di Pasquale <stefaniscion@gmail.com>**. This attribution was requested by the owner; tags are not cryptographically signed.
+
+Before releasing, update `package.json`, `package-lock.json`, Android `versionCode`/`versionName` and the UI version. Run the tests/builds and create an annotated version tag.
+
+To publish to an empty Git repository:
+
+```sh
+git remote add origin YOUR_REPOSITORY_URL
+git push -u origin main
+git push origin --tags
+```
+
+No open-source license has been selected for the original code. Third-party components retain their own licenses.
