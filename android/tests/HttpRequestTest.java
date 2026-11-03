@@ -14,7 +14,7 @@ public final class HttpRequestTest {
     public static void main(String[] args) throws Exception {
         Connection connection = new Connection();
         HttpRequest.configure(connection, 15000, 30000, "application/octet-stream");
-        if (!"TucaTV/0.12.1".equals(connection.getRequestProperty("User-Agent"))) throw new AssertionError("User-Agent");
+        if (!"TucaTV/0.12.2".equals(connection.getRequestProperty("User-Agent"))) throw new AssertionError("User-Agent");
         if (!"identity".equals(connection.getRequestProperty("Accept-Encoding"))) throw new AssertionError("encoding");
         if (!"application/octet-stream".equals(connection.getRequestProperty("Accept"))) throw new AssertionError("accept");
         if (!connection.getInstanceFollowRedirects()) throw new AssertionError("redirects");

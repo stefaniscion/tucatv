@@ -6,7 +6,7 @@ import java.net.URL;
 import java.net.URLConnection;
 
 final class HttpRequest {
-    static final String USER_AGENT = "TucaTV/0.12.1";
+    static final String USER_AGENT = "TucaTV/0.12.2";
 
     private HttpRequest() {}
 
