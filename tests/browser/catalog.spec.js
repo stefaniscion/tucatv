@@ -100,3 +100,16 @@ test('shelves and playlist collections also load progressively',async({page})=>{
  await expect(page.locator('.playlistcard')).toHaveCount(14);
  await expect(page.locator('.playlistcard').nth(12).getByRole('button',{name:'Apri'})).toBeFocused();
 });
+
+test('disabling startup refresh preserves saved channels without downloading the playlist',async({page})=>{
+ let requests=0;
+ await page.route('https://example.test/playlist.m3u',route=>{requests++;return route.fulfill({body:'#EXTM3U\n#EXTINF:-1,Updated\nhttps://example.test/live/new'});});
+ await page.addInitScript(()=>localStorage.setItem('tucatv-settings',JSON.stringify({refreshOnStartup:false})));
+ await seed(page,[list('a',channels(1),{source:'https://example.test/playlist.m3u'})]);
+ await expect(page.locator('.hero-content h1')).toHaveText('Canale 0');
+ await page.getByRole('button',{name:'Le mie playlist',exact:true}).click();
+ expect(requests).toBe(0);
+ await page.getByRole('button',{name:'Aggiorna',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Playlist aggiornata'})).toBeVisible();
+ expect(requests).toBe(1);
+});

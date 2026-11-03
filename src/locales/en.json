@@ -12,7 +12,7 @@
   "Interrompi riproduzione": "Stop playback",
   "Tutto sul tuo dispositivo": "Everything on your device",
   "Nessun account. Solo la tua TV.": "No account. Just your TV.",
-  "TucaTV / VERSIONE 0.10.0": "TucaTV / VERSION 0.10.0",
+  "TucaTV / VERSIONE 0.11.0": "TucaTV / VERSION 0.11.0",
   "LIBRERIA": "LIBRARY",
   "IN RIPRODUZIONE": "NOW PLAYING",
   "IL TUO CATALOGO": "YOUR CATALOGUE",
@@ -261,5 +261,15 @@
   "La sorgente supera il limite di {limit}.": "The source exceeds the {limit} limit.",
   "TucaTV · La tua TV, prende il volo": "TucaTV · Your TV takes flight",
   "Impossibile sincronizzare la lingua del player. Riprova.": "Unable to synchronize the player language. Please try again.",
-  "La sorgente ha risposto con errore HTTP ": "The source returned HTTP "
+  "La sorgente ha risposto con errore HTTP ": "The source returned HTTP ",
+  "Impostazioni": "Settings",
+  "Preferenze salvate su questo dispositivo.": "Preferences saved on this device.",
+  "Lingua del dispositivo": "Device language",
+  "La lingua cambia subito. Le opzioni iniziali si applicano al prossimo avvio.": "Language changes immediately. Startup options apply the next time you open the app.",
+  "Aggiorna playlist all’avvio": "Refresh playlists at startup",
+  "Attivo": "On",
+  "Disattivato": "Off",
+  "Vista iniziale": "Initial view",
+  "Sezione iniziale": "Initial section",
+  "Impossibile salvare le impostazioni.": "Unable to save settings."
 }

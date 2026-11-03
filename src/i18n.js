@@ -9,16 +9,18 @@ export function resolveLocale(saved,preferred=[]){
  for(const value of preferred){const code=String(value).toLowerCase().split(/[-_]/)[0];if(Object.hasOwn(languages,code))return code;}
  return 'en';
 }
-function initialLocale(){
- if(typeof document==='undefined')return 'it';
- let saved;try{saved=localStorage.getItem('tucatv-language');}catch{}
- return resolveLocale(saved,globalThis.navigator?.languages||[globalThis.navigator?.language]);
+function initialPreference(){
+ try{const saved=localStorage.getItem('tucatv-language');return Object.hasOwn(languages,saved)?saved:'device';}catch{return 'device';}
 }
-export const locale=writable(initialLocale());
+function deviceLanguages(){return typeof document==='undefined'?['it']:globalThis.navigator?.languages||[globalThis.navigator?.language];}
+export const languagePreference=writable(initialPreference());
+export const locale=writable(resolveLocale(get(languagePreference),deviceLanguages()));
 export const currentLocale=()=>get(locale);
+export function refreshDeviceLocale(){locale.set(resolveLocale(get(languagePreference),deviceLanguages()));}
 export function setLocale(value){
- const next=resolveLocale(value);locale.set(next);
- try{localStorage.setItem('tucatv-language',next);}catch{}
+ const preference=Object.hasOwn(languages,value)?value:'device';
+ try{localStorage.setItem('tucatv-language',preference);}catch{return false;}
+ languagePreference.set(preference);refreshDeviceLocale();return true;
 }
 export const message=(key,params={})=>({key,params});
 // Source-language keys are stable identifiers, not provider-supplied content.
