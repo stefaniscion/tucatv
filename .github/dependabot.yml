@@ -1,14 +1,14 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: monthly
-  - package-ecosystem: gradle
-    directory: /android
-    schedule:
-      interval: monthly
-  - package-ecosystem: pip
-    directory: /desktop
-    schedule:
-      interval: monthly
+    - package-ecosystem: npm
+      directory: /
+      schedule:
+          interval: monthly
+    - package-ecosystem: gradle
+      directory: /android
+      schedule:
+          interval: monthly
+    - package-ecosystem: pip
+      directory: /desktop
+      schedule:
+          interval: monthly

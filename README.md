@@ -1,8 +1,8 @@
 # TucaTV
 
-Client-side IPTV player with a shared Svelte 5 / Tailwind CSS 4 interface. Supports M3U files and URLs, XMLTV, Live/VOD browsing, favorites, hidden categories and TV remote navigation.
+Client-side IPTV player with a shared Svelte 5 / Tailwind CSS 4 interface. Supports M3U files and URLs, XMLTV, Live/VOD browsing, favorites, hidden categories, TV remote navigation and a responsive timeline/agenda TV guide.
 
-**Version:** 1.12.3. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
+**Version:** 0.13.0. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
 
 ## Web
 
@@ -42,7 +42,7 @@ For a signed release, run from the repository root:
 npm run android:release
 ```
 
-Output: `artifacts/android/TucaTV-1.12.3.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
+Output: `artifacts/android/TucaTV-0.13.0.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
 
 Signing inputs are excluded from Git. Android application ID: `it.stefaniscion.tucatv`.
 
@@ -88,6 +88,19 @@ python -m unittest discover -s desktop/tests
 
 Run validation locally; no CI workflows are configured. Streaming, audio routing, PiP and TV navigation require device testing. Browser tests use synthetic playlists and XMLTV only.
 
+## Formatting
+
+Code uses four-space indentation. Install the JavaScript and Python development tools, then run the formatter or its read-only check:
+
+```sh
+npm ci
+python -m pip install -r desktop/requirements-dev.txt
+npm run format
+npm run format:check
+```
+
+Generated Capacitor files, build output, binary assets and bundled Rytec data are excluded from formatting.
+
 ## Source layout
 
 - `src/`: Svelte interface, playlist parsing, storage and playback adapters.
@@ -103,7 +116,7 @@ Catalogues, shelves, playlist collections and category management load progressi
 
 Settings → Manage EPG enables all 56 bundled Rytec sources by default. Sources update sequentially at startup when missing or older than 24 hours, and are checked hourly while the app is visible. Users can disable automatic updates or individual sources, update manually, stop a run, inspect errors and clear the Rytec cache. Downloads try the mirrors listed in the bundled catalogue; availability is not guaranteed. Browser CORS and mixed-content restrictions still apply.
 
-Rytec XMLTV is decompressed (XZ/gzip) and parsed in a worker, then stored in IndexedDB in bounded batches. Limits are 256 MiB per downloaded/decompressed source and 32 KiB per title/description. All channels are imported, retaining programmes from the past day through the next 14 days. Only current/next entries for active playlist IDs are loaded into the UI. A complete validated generation replaces the previous guide; failed imports preserve cached data. Abandoned generations are cleaned at startup.
+Rytec XMLTV is decompressed (XZ/gzip) and parsed in a worker, then stored in IndexedDB in bounded batches. Limits are 256 MiB per downloaded/decompressed source and 32 KiB per title/description. All channels are imported, retaining programmes from the past day through the next 14 days. Catalogue views load current/next entries only; the full guide queries a three-hour window for progressively visible channels and switches to a single-channel agenda on narrow screens. A complete validated generation replaces the previous guide; failed imports preserve cached data. Abandoned generations are cleaned at startup.
 
 Playlist-specific XMLTV URLs and local XML imports (64 MiB limit) are managed in Settings → Manage EPG and take precedence over Rytec. Existing playlist guides and local imports are retained. Channel matching uses exact M3U `tvg-id` / XMLTV channel IDs. The last channel is recorded after playback starts; native zapping updates it, and the hero respects the selected Live/VOD mode.
 

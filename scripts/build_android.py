@@ -1,4 +1,5 @@
 """Build and sign Android using an existing, untracked keystore."""
+
 import argparse
 import json
 import os
@@ -21,7 +22,9 @@ def main():
         raise SystemExit("Set ANDROID_HOME or ANDROID_SDK_ROOT to your Android SDK.")
     sdk = Path(sdk_value).expanduser().resolve()
     key = Path(os.environ.get("TUCATV_KEYSTORE", ROOT / "signing/tucatv-release.p12")).expanduser().resolve()
-    password = Path(os.environ.get("TUCATV_KEYSTORE_PASSWORD_FILE", ROOT / "signing/password.txt")).expanduser().resolve()
+    password = (
+        Path(os.environ.get("TUCATV_KEYSTORE_PASSWORD_FILE", ROOT / "signing/password.txt")).expanduser().resolve()
+    )
     alias = os.environ.get("TUCATV_KEY_ALIAS", "tucatv")
     for path in (key, password):
         if not path.is_file():
@@ -52,9 +55,21 @@ def main():
     pending = output_dir / f".TucaTV-{version}.pending.apk"
     run([align, "-p", "-f", "4", unsigned, aligned])
     try:
-        run([signer, "sign", "--ks", key, "--ks-key-alias", alias,
-             "--ks-pass", f"file:{password}",
-             "--out", pending, aligned])
+        run(
+            [
+                signer,
+                "sign",
+                "--ks",
+                key,
+                "--ks-key-alias",
+                alias,
+                "--ks-pass",
+                f"file:{password}",
+                "--out",
+                pending,
+                aligned,
+            ]
+        )
         run([signer, "verify", "--verbose", "--print-certs", pending])
         pending.replace(output)
     finally:

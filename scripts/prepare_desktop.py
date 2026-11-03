@@ -1,4 +1,5 @@
 """Copy the current web build into the local desktop host."""
+
 from pathlib import Path
 import shutil
 

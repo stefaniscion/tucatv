@@ -1,0 +1,34 @@
+{
+    "tabWidth": 4,
+    "useTabs": false,
+    "printWidth": 120,
+    "singleQuote": true,
+    "plugins": ["prettier-plugin-svelte", "prettier-plugin-java", "@prettier/plugin-xml", "prettier-plugin-sh"],
+    "overrides": [
+        {
+            "files": "*.svelte",
+            "options": {
+                "parser": "svelte"
+            }
+        },
+        {
+            "files": "*.java",
+            "options": {
+                "parser": "java"
+            }
+        },
+        {
+            "files": "*.xml",
+            "options": {
+                "parser": "xml",
+                "xmlWhitespaceSensitivity": "ignore"
+            }
+        },
+        {
+            "files": "*.sh",
+            "options": {
+                "parser": "sh"
+            }
+        }
+    ]
+}
