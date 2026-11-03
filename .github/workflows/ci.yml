@@ -45,5 +45,5 @@ jobs:
       - name: Check bounded playlist transfer
         run: |
           mkdir -p artifacts/java-tests
-          javac -d artifacts/java-tests android/app/src/main/java/it/stefaniscion/onda/PlaylistTransfer.java android/tests/PlaylistTransferTest.java
-          java -Xmx16m -cp artifacts/java-tests it.stefaniscion.onda.PlaylistTransferTest
+          javac -d artifacts/java-tests android/app/src/main/java/it/stefaniscion/tucatv/PlaylistTransfer.java android/tests/PlaylistTransferTest.java
+          java -Xmx16m -cp artifacts/java-tests it.stefaniscion.tucatv.PlaylistTransferTest

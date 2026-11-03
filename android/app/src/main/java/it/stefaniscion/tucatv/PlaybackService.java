@@ -1,4 +1,4 @@
-package it.stefaniscion.onda;
+package it.stefaniscion.tucatv;
 import android.app.*;
 import android.content.*;
 import android.media.AudioAttributes;
@@ -18,7 +18,7 @@ public class PlaybackService extends Service {
  public static volatile PlaybackService current;
  private boolean stopped=false;
  public boolean hasSession(){return !stopped&&player!=null&&queue.length()>0;}
- public static final String TOGGLE="it.stefaniscion.onda.TOGGLE", STOP="it.stefaniscion.onda.STOP";
+ public static final String TOGGLE="it.stefaniscion.tucatv.TOGGLE", STOP="it.stefaniscion.tucatv.STOP";
  public MediaPlayer player; private LibVLC engine; private MediaSession session; private AudioManager audio;
  private AudioFocusRequest focusRequest; private boolean resumeAfterFocus=false,hasFocus=false;
  private PowerManager.WakeLock wakeLock;

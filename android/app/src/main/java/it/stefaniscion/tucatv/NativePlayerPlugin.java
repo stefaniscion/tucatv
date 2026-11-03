@@ -1,4 +1,4 @@
-package it.stefaniscion.onda;
+package it.stefaniscion.tucatv;
 import android.content.Intent;
 import android.net.Uri;
 import com.getcapacitor.*;

@@ -42,7 +42,7 @@ npm run android:release
 
 Output: `artifacts/android/TucaTV-0.9.1.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
 
-**Signing files are private and ignored by Git.** The delivery archive includes the existing 0.9.x key; cloning the bundle alone does not copy it. Keep a private backup and never publish the delivery archive. Release updates must retain the same application ID (`it.stefaniscion.onda`) and signing key. Debug APKs use a different key.
+Signing inputs are excluded from Git. Android application ID: `it.stefaniscion.tucatv`.
 
 ## Windows / Linux
 
@@ -74,7 +74,7 @@ python -m PyInstaller --noconfirm --clean --name TucaTV --windowed --add-data "d
 
 Distribute the entire output directory. This command does not bundle VLC; install VLC x64 on the target PC or package its runtime separately. Desktop installers are unsigned and require platform testing.
 
-## Tests and releases
+## Tests
 
 ```sh
 npm test
@@ -82,18 +82,18 @@ npm run build
 python -m unittest discover -s desktop/tests -p 'test_network.py'
 ```
 
-CI checks web tests/build and unsigned Android builds. Hardware checks are still required for streaming, audio, PiP, cutouts and remote navigation. Current dependencies retain known deprecation warnings; this repository is not a security audit.
+CI runs web tests/build, desktop network tests, Android compilation and the bounded playlist-transfer test. Streaming, audio routing, PiP and TV navigation require device testing.
 
-Version tags `v0.1.0` through `v0.9.1` contain 11 reconstructed release snapshots. Intermediate fixes within each version were consolidated; generated output and hosting metadata were excluded. Repository-maintenance commits follow the release snapshots. Author and committer: **Stefano Di Pasquale <stefaniscion@gmail.com>**. This attribution was requested by the owner; tags are not cryptographically signed.
+## Source layout
 
-Before releasing, update `package.json`, `package-lock.json`, Android `versionCode`/`versionName` and the UI version. Run the tests/builds and create an annotated version tag.
+- `src/`: Svelte interface, playlist parsing, storage and playback adapters.
+- `android/`: Capacitor host, libVLC player and background playback service.
+- `desktop/`: PySide6 host, libVLC integration and desktop packaging.
+- `scripts/`: Android signing and desktop asset preparation.
+- `tests/`: JavaScript tests; native tests live under `android/tests/` and `desktop/tests/`.
 
-To publish to an empty Git repository:
+## Release configuration
 
-```sh
-git remote add origin YOUR_REPOSITORY_URL
-git push -u origin main
-git push origin --tags
-```
+Version metadata is defined in `package.json`, `package-lock.json`, Android `versionCode`/`versionName` and the UI version. Android signing is configured through the environment variables listed above.
 
 No open-source license has been selected for the original code. Third-party components retain their own licenses.

@@ -1,4 +1,4 @@
-package it.stefaniscion.onda;
+package it.stefaniscion.tucatv;
 import android.app.*;
 import android.content.*;
 import android.content.res.Configuration;

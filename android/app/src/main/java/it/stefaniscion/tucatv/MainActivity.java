@@ -1,4 +1,4 @@
-package it.stefaniscion.onda;
+package it.stefaniscion.tucatv;
 import android.os.Bundle;
 import android.os.Build;
 import android.graphics.Color;
