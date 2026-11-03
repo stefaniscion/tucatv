@@ -58,7 +58,8 @@
         refreshLabel = $state(''),
         searchQuery = $state('');
     let categoryEditor = $state(null),
-        lastOpened = $state.raw({});
+        lastOpened = $state.raw({}),
+        guideChannel = $state('');
     let playbackPoll,
         playbackSubscription,
         destroyed = false;
@@ -704,6 +705,10 @@
         page = p;
         message = '';
     }
+    function openGuide(channel) {
+        guideChannel = channel?.tvg || '';
+        nav('guide');
+    }
     function progressKey(event, destination) {
         if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
         event.preventDefault();
@@ -809,7 +814,7 @@
         <div class="navlabel">{$t('YOUR TV SPACE')}</div>
         <button aria-label={$t('Catalogue')} class:chosen={page === 'channels'} onclick={() => nav('channels')}
             >▦ <span>{$t('Catalogue')}</span></button
-        ><button aria-label={$t('TV Guide')} class:chosen={page === 'guide'} onclick={() => nav('guide')}
+        ><button aria-label={$t('TV Guide')} class:chosen={page === 'guide'} onclick={() => openGuide()}
             >▥ <span>{$t('TV Guide')}</span></button
         ><button aria-label={$t('My playlists')} class:chosen={page === 'playlists'} onclick={() => nav('playlists')}
             >▤ <span>{$t('My playlists')}</span></button
@@ -837,7 +842,7 @@
             <span class="dot"></span>
             {$t('Everything on your device')}
             <p>{$t('No account. Just your TV.')}</p>
-            <small>{$t('TucaTV / VERSION 0.13.0')}</small>
+            <small>{$t('TucaTV / VERSION 1.13.1')}</small>
         </div>
     </aside>
     <main>
@@ -955,6 +960,7 @@
                 }}
                 {play}
                 {clock}
+                requestedChannel={guideChannel}
             />
         {:else if page === 'epg'}
             <EpgSettings
@@ -1199,9 +1205,14 @@
                             group = g;
                             view = 'list';
                         }}
-                    />{:else}<TVCatalog items={filtered} {play} {favorite} {favorites} {now} />{/if}{:else}<div
-                    class="empty"
-                >
+                    />{:else}<TVCatalog
+                        items={filtered}
+                        {play}
+                        {favorite}
+                        {favorites}
+                        {now}
+                        guide={catalogMode === 'live' ? openGuide : null}
+                    />{/if}{:else}<div class="empty">
                     <h2>{$t('Your screen is waiting.')}</h2>
                     <p>{$t('Add a playlist to find all your channels here.')}</p>
                     <button class="primary" onclick={() => nav('playlists')}>{$t('Add playlist ↗')}</button>

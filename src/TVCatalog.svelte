@@ -2,7 +2,7 @@
     import { t, locale } from './i18n.js';
     import Logo from './Logo.svelte';
     import { tick } from 'svelte';
-    let { items, play, favorite, favorites, now } = $props();
+    let { items, play, favorite, favorites, now, guide = null } = $props();
     import LoadMore from './LoadMore.svelte';
     import { focusControl } from './tv-navigation.js';
     let limit = $state(24),
@@ -34,13 +34,21 @@
                     <span class="tv-logo"><Logo src={c.logo} name={c.name} /></span><span class="tv-title"
                         ><strong>{c.name}</strong><small>{now(c)?.title || c.group}</small></span
                     >
-                </button><button
-                    class="tv-favorite"
-                    aria-label={(favorites.includes(c.url) ? $t('Remove from favorites: ') : $t('Add to favorites: ')) +
-                        c.name}
-                    aria-pressed={favorites.includes(c.url)}
-                    onclick={() => favorite(c)}>{favorites.includes(c.url) ? '♥' : '♡'}</button
-                >
+                </button>
+                <div class="tv-card-actions">
+                    {#if guide && c.tvg}<button
+                            class="tv-guide"
+                            aria-label={$t('Open TV guide for ') + c.name}
+                            onclick={() => guide(c)}>▥</button
+                        >{/if}<button
+                        class="tv-favorite"
+                        aria-label={(favorites.includes(c.url)
+                            ? $t('Remove from favorites: ')
+                            : $t('Add to favorites: ')) + c.name}
+                        aria-pressed={favorites.includes(c.url)}
+                        onclick={() => favorite(c)}>{favorites.includes(c.url) ? '♥' : '♡'}</button
+                    >
+                </div>
             </article>
         {/each}
     </div>

@@ -21,7 +21,7 @@ def valid_url(value):
 
 def transfer(url, sink, limit, on_progress=None):
     valid_url(url)
-    request = Request(url, headers={"Accept-Encoding": "identity", "User-Agent": "TucaTV/0.13.0"})
+    request = Request(url, headers={"Accept-Encoding": "identity", "User-Agent": "TucaTV/1.13.1"})
     with urlopen(request, timeout=15) as response:
         valid_url(response.url)
         # urllib does not decompress responses. Reject unsolicited encoding rather

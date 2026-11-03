@@ -23,7 +23,7 @@ public final class HttpRequestTest {
     public static void main(String[] args) throws Exception {
         Connection connection = new Connection();
         HttpRequest.configure(connection, 15000, 30000, "application/octet-stream");
-        if (!"TucaTV/0.13.0".equals(connection.getRequestProperty("User-Agent"))) throw new AssertionError(
+        if (!"TucaTV/1.13.1".equals(connection.getRequestProperty("User-Agent"))) throw new AssertionError(
             "User-Agent"
         );
         if (!"identity".equals(connection.getRequestProperty("Accept-Encoding"))) throw new AssertionError("encoding");

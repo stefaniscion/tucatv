@@ -7,9 +7,7 @@
     import { epgState, enabledSources, lookupSchedule } from './epg/service.js';
     import { GUIDE_SLOT, GUIDE_WINDOW, guideWindowStart, programmePosition, schedulesByChannel } from './guide.js';
 
-    const DAY = 24 * 60 * 60 * 1000;
-
-    let { channels, customPrograms, playlists, active, onactive, play, clock } = $props();
+    let { channels, customPrograms, playlists, active, onactive, play, clock, requestedChannel = '' } = $props();
     let anchor = $state(guideWindowStart(Date.now())),
         limit = $state(18),
         compact = $state(false),
@@ -19,8 +17,14 @@
         loading = $state(false),
         failure = $state(''),
         host,
-        request = 0;
-    let visibleChannels = $derived(channels.slice(0, limit)),
+        request = 0,
+        appliedRequest = $state('');
+    let baseChannels = $derived(channels.slice(0, limit)),
+        visibleChannels = $derived(
+            selectedChannel && !baseChannels.some((channel) => channel.tvg === selectedChannel)
+                ? [channels.find((channel) => channel.tvg === selectedChannel), ...baseChannels].filter(Boolean)
+                : baseChannels,
+        ),
         queryChannels = $derived(
             compact ? channels.filter((channel) => channel.tvg === selectedChannel).slice(0, 1) : visibleChannels,
         ),
@@ -32,9 +36,17 @@
 
     $effect(() => {
         const ids = channels.map((channel) => channel.tvg);
-        if (!ids.includes(selectedChannel)) selectedChannel = ids[0] || '';
+        if (requestedChannel && ids.includes(requestedChannel) && appliedRequest !== requestedChannel) {
+            selectedChannel = requestedChannel;
+            appliedRequest = requestedChannel;
+        } else if (!ids.includes(selectedChannel)) selectedChannel = ids[0] || '';
         limit = 18;
         selected = null;
+    });
+
+    $effect(() => {
+        const now = clock;
+        if (now < anchor || now >= anchor + GUIDE_WINDOW) anchor = guideWindowStart(now);
     });
 
     $effect(() => {
@@ -68,7 +80,10 @@
                 }
             })
             .finally(() => {
-                if (current === request) loading = false;
+                if (current === request) {
+                    loading = false;
+                    if (requestedChannel && appliedRequest === requestedChannel) focusRequestedChannel();
+                }
             });
     });
 
@@ -97,9 +112,18 @@
         selected = { channel, programme };
     }
 
-    function shift(amount) {
-        anchor += amount;
-        selected = null;
+    function focusRequestedChannel() {
+        tick().then(() =>
+            requestAnimationFrame(() => {
+                const compactSelect = host?.querySelector('.guide-compact select');
+                if (compactSelect?.getClientRects().length) {
+                    focusControl(compactSelect);
+                    return;
+                }
+                const row = host?.querySelector('.guide-row.requested');
+                focusControl(row?.querySelector('.guide-programme') || row?.querySelector('.guide-channel-button'));
+            }),
+        );
     }
 
     async function more(focus = false) {
@@ -122,14 +146,7 @@
         </select>
     </div>
 
-    <div class="guide-controls" aria-label={$t('Guide time controls')}>
-        <button onclick={() => shift(-DAY)} aria-label={$t('Previous day')}>−24h</button>
-        <button onclick={() => shift(-GUIDE_WINDOW)} aria-label={$t('Earlier programmes')}>← {$t('Earlier')}</button>
-        <button class="primary" onclick={() => (anchor = guideWindowStart(clock))}>{$t('Now')}</button>
-        <button onclick={() => shift(GUIDE_WINDOW)} aria-label={$t('Later programmes')}>{$t('Later')} →</button>
-        <button onclick={() => shift(DAY)} aria-label={$t('Next day')}>+24h</button>
-        <strong>{day(anchor)} · {time(anchor)}–{time(anchor + GUIDE_WINDOW)}</strong>
-    </div>
+    <p class="guide-period">{day(anchor)} · {time(anchor)}–{time(anchor + GUIDE_WINDOW)}</p>
 
     {#if failure}<div class="notice" role="status">{$t(failure)}</div>{/if}
     {#if loading}<p class="guide-loading" role="status">{$t('Loading programme schedule…')}</p>{/if}
@@ -147,7 +164,7 @@
                 </div>
                 {#each visibleChannels as channel}
                     {@const items = schedules.get(channel.tvg) || []}
-                    <div class="guide-row">
+                    <div class="guide-row" class:requested={channel.tvg === requestedChannel}>
                         <button
                             class="guide-channel-button"
                             onclick={() => play(channel)}
@@ -182,8 +199,8 @@
                     </div>
                 {/each}
             </div>
-            {#if visibleChannels.length < channels.length}{#key visibleChannels.length}<LoadMore
-                        remaining={channels.length - visibleChannels.length}
+            {#if limit < channels.length}{#key limit}<LoadMore
+                        remaining={channels.length - limit}
                         onmore={more}
                         label={$t('Load more channels')}
                     />{/key}{/if}

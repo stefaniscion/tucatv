@@ -2779,26 +2779,23 @@ body,
     padding-bottom: 30px;
 }
 .guide-heading {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
-.guide-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-}
-.guide-controls strong {
-    margin-left: auto;
+.guide-period {
+    margin: 0 0 12px;
     color: #bdbdbd;
     font-size: 12px;
+    font-weight: 600;
+    text-align: right;
 }
 .guide-loading {
     color: #ff9a42;
     margin: 10px 0;
 }
 .guide-timeline {
+    width: 100%;
     overflow: auto;
-    max-height: calc(100vh - 300px);
+    max-height: calc(100vh - 220px);
     border: 1px solid #303030;
     border-radius: 10px;
     background: #0d0d0d;
@@ -2856,7 +2853,7 @@ body,
     border-left: 1px solid #292929;
 }
 .guide-row {
-    min-height: 74px;
+    min-height: 88px;
     border-bottom: 1px solid #262626;
 }
 .guide-row:last-child {
@@ -2867,7 +2864,7 @@ body,
     align-items: center;
     gap: 10px;
     width: 100%;
-    min-height: 74px;
+    min-height: 88px;
     padding: 9px 12px;
     text-align: left;
 }
@@ -2887,7 +2884,7 @@ body,
     white-space: nowrap;
 }
 .guide-track {
-    min-height: 74px;
+    min-height: 88px;
     overflow: hidden;
     background: repeating-linear-gradient(to right, transparent 0, transparent calc(16.666% - 1px), #222222 16.666%);
 }
@@ -2966,17 +2963,7 @@ body,
     .guide-heading h1 {
         font-size: 28px;
     }
-    .guide-controls {
-        flex-wrap: wrap;
-    }
-    .guide-controls button {
-        flex: 1;
-        min-width: 76px;
-        padding: 9px;
-    }
-    .guide-controls strong {
-        width: 100%;
-        margin: 2px 0 0;
+    .guide-period {
         text-align: center;
     }
     .guide-wide {
@@ -3021,6 +3008,37 @@ body,
     .guide-details {
         align-items: stretch;
         flex-direction: column;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 700px) {
+    .guide-heading {
+        margin: 10px 0 6px;
+    }
+    .guide-heading h1 {
+        font-size: 34px;
+    }
+    .guide-period,
+    .guide-loading {
+        margin: 4px 0 8px;
+    }
+    .guide-timeline {
+        max-height: calc(100vh - 150px);
+    }
+    .guide-time-row,
+    .guide-row {
+        grid-template-columns: 230px minmax(1200px, 1fr);
+        min-width: 1430px;
+    }
+    .guide-row,
+    .guide-channel-button,
+    .guide-track {
+        min-height: 96px;
+    }
+    .guide-channel-logo {
+        width: 52px;
+        height: 52px;
+        flex-basis: 52px;
     }
 }
 
@@ -3101,7 +3119,14 @@ body,
     background: transparent;
     min-width: 0;
 }
-.tv-first .tv-favorite {
+.tv-first .tv-card-actions {
+    display: flex;
+    align-self: stretch;
+    flex-direction: column;
+    justify-content: center;
+}
+.tv-first .tv-favorite,
+.tv-first .tv-guide {
     width: 40px;
     height: 44px;
     min-height: 44px;
@@ -3111,6 +3136,9 @@ body,
     color: #ff8a24;
     font-size: 24px;
     scroll-margin: 24px;
+}
+.tv-first .tv-guide {
+    font-size: 18px;
 }
 .tv-first .tv-card button:focus {
     background: #39220f;

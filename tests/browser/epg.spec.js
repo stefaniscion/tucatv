@@ -119,6 +119,7 @@ test('failed mirror falls back; malformed refresh retains the last complete guid
 });
 
 test('full guide uses a timeline on wide screens and a channel agenda on narrow screens', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 540 });
     await setup(page, { automatic: true, disabled: sources.slice(1).map((source) => source.id) });
     for (const mask of masks)
         await page.route(mask, (route) =>
@@ -133,6 +134,9 @@ test('full guide uses a timeline on wide screens and a channel agenda on narrow 
     await page.getByRole('button', { name: 'Guida TV', exact: true }).click();
 
     await expect(page.locator('.guide-wide')).toBeVisible();
+    await expect(page.locator('.guide-controls')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Adesso', exact: true })).toHaveCount(0);
+    expect((await page.locator('.guide-row').first().boundingBox()).height).toBeGreaterThanOrEqual(90);
     const programme = page.getByRole('button', { name: /Rytec attuale/ });
     await expect(programme).toBeVisible();
     await programme.focus();

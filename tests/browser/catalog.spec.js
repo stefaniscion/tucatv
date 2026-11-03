@@ -102,6 +102,22 @@ test('compact grid keeps channel logos visible', async ({ page }, testInfo) => {
     expect(box.width).toBeGreaterThanOrEqual(24);
     expect(box.height).toBeGreaterThanOrEqual(24);
     await page.screenshot({ path: testInfo.outputPath('compact-grid-logos.png') });
+    await page.getByRole('button', { name: 'Apri la guida TV di Canale 0' }).click();
+    await expect(page.getByRole('heading', { name: 'Guida TV.' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Canale' })).toHaveValue('channel-0');
+});
+
+test('grid guide shortcut focuses a channel outside the initial guide batch', async ({ page }) => {
+    await page.addInitScript(() => {
+        delete window.IntersectionObserver;
+    });
+    await seed(page, [list('a', channels(40))]);
+    await page.getByRole('button', { name: 'Vista griglia', exact: true }).click();
+    await page.getByRole('button', { name: 'Apri la guida TV di Canale 23' }).click();
+    const channel = page.getByRole('button', { name: 'Riproduci Canale 23' });
+    await expect(channel).toBeVisible();
+    await expect(channel).toBeFocused();
+    await expect(page.locator('.guide-row')).toHaveCount(19);
 });
 
 test('artwork is above its badge and the hero respects Live/VOD', async ({ page }, testInfo) => {
