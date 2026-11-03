@@ -60,3 +60,10 @@ Barra condivisa per file, link e aggiornamento playlist: trasferimento (byte ric
 - Intro 3,9 secondi (+1,5 secondi), sempre saltabile; reduced-motion mantiene la durata breve.
 - Limite playlist 256 MiB in browser, APK e desktop. Trasferimento APK a blocchi conservato; immagini restano limitate a 2 MiB e la guida XMLTV nativa Android a 64 MiB. Il limite dimensionale non garantisce che ogni dispositivo possa mantenere in memoria un catalogo di dimensioni arbitrarie.
 - Verifiche: 20 test JS, 5 test rete desktop, trasferimento Java di 128 MiB con heap di 16 MiB e guardia a 256 MiB, build Android. Navigazione browser con tastiera su 140.000 canali: 24 tile, focus destra/giù e cambio pagina. Test UI aggiornamento automatico dopo modifica della sorgente; copie offline conservate. Ripresa nativa e telecomando fisico richiedono verifica su dispositivo.
+
+## Versione 0.9 — Interfaccia TV-first
+- Un solo layout per TV, tablet e telefono: barra laterale compatta su schermi stretti o bassi, contenuto scorrevole indipendente, titoli e spaziature ridotti. Nessun selettore separato di modalità mobile/TV.
+- Catalogo iniziale con ultimo canale aperto per playlist, conservato sul dispositivo. Un canale rimosso o nascosto non viene riproposto. Gli spostamenti interni al player nativo non modificano questa cronologia.
+- Categorie nascondibili dalla gestione playlist, con ricerca, paginazione, mostra/nascondi tutte e salvataggio esplicito. Le esclusioni si applicano a catalogo, ricerca e preferiti; restano salvate durante il refresh remoto. I canali non vengono eliminati.
+- Android 0.9.0 / versionCode 8. Nuova chiave di firma, conservata separatamente dal repository: il primo passaggio dagli APK precedenti richiede disinstallazione e reimportazione delle playlist. Gli aggiornamenti successivi devono riutilizzare questa chiave.
+- Verifiche: 22 test JavaScript; layout browser 844×390, 390×844 e 1280×720; salvataggio categorie, esclusione dal catalogo e persistenza dopo refresh. Prove fisiche su TV/telefono ancora necessarie.
