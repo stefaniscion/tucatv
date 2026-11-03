@@ -1,4 +1,5 @@
 <script>
+ import {t,locale} from './i18n.js';
  import {onMount} from 'svelte';
  import {loadLogo} from './logos.js';
  let {src='',name='',hero=false}= $props();

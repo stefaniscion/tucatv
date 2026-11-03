@@ -10,5 +10,5 @@ launcher=root/'usr/bin/tucatv';launcher.write_text('#!/bin/sh\nexec /opt/tucatv/
 (root/'usr/share/applications/tucatv.desktop').write_text('[Desktop Entry]\nType=Application\nName=TucaTV\nComment=La tua TV. Il tuo ritmo.\nExec=tucatv\nIcon=tucatv\nTerminal=false\nCategories=AudioVideo;Player;\n')
 shutil.copy(repo/'public/tucatv-mark.svg',root/'usr/share/icons/hicolor/scalable/apps/tucatv.svg')
 shutil.copy(repo/'README.md',root/'usr/share/doc/tucatv/README')
-for name in ['main.py','network.py','requirements.txt']:shutil.copy(repo/'desktop'/name,root/'usr/share/doc/tucatv'/name)
+for name in ['main.py','network.py','playback_queue.py','i18n.py','requirements.txt']:shutil.copy(repo/'desktop'/name,root/'usr/share/doc/tucatv'/name)
 subprocess.run(['dpkg-deb','--root-owner-group','-Zxz','--build',str(root),str(out/f'TucaTV-{version}-Linux-amd64.deb')],check=True)

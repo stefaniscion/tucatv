@@ -21,7 +21,11 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
       - run: python3 -m unittest discover -s desktop/tests -p 'test_network.py'
+      - run: python3 -m unittest discover -s desktop/tests -p 'test_playback_queue.py'
+      - run: python3 -m unittest discover -s desktop/tests -p 'test_i18n.py'
       - run: git diff --check
   android:
     runs-on: ubuntu-24.04
@@ -47,3 +51,5 @@ jobs:
           mkdir -p artifacts/java-tests
           javac -d artifacts/java-tests android/app/src/main/java/it/stefaniscion/tucatv/PlaylistTransfer.java android/tests/PlaylistTransferTest.java
           java -Xmx16m -cp artifacts/java-tests it.stefaniscion.tucatv.PlaylistTransferTest
+          javac -d artifacts/java-tests android/app/src/main/java/it/stefaniscion/tucatv/PlaybackQueue.java android/tests/PlaybackQueueTest.java
+          java -Xmx16m -cp artifacts/java-tests it.stefaniscion.tucatv.PlaybackQueueTest

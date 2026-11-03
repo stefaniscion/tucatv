@@ -33,3 +33,37 @@ class ProgressTests(unittest.TestCase):
   with patch('network.urlopen',return_value=response):
    data=download('http://example.test/list',on_progress=lambda received,total:events.append((received,total)))
   self.assertEqual(len(data),70000);self.assertEqual(events[0],(0,70000));self.assertEqual(events[-1],(70000,70000));self.assertTrue(any(0<received<70000 for received,total in events))
+
+class TransferTests(unittest.TestCase):
+ def test_truncated_download_rejected(self):
+  response=Reply(b'partial','text/plain');response.headers['Content-Length']='100'
+  with patch('network.urlopen',return_value=response):
+   with self.assertRaisesRegex(ValueError,'incompleto'):download('https://example.test/list')
+ def test_playlist_chunks_and_cleanup(self):
+  import base64
+  from network import PlaylistDownloads
+  store=PlaylistDownloads();body=b'x'*150000
+  with patch('network.urlopen',return_value=Reply(body,'text/plain')):
+   result=store.download('https://example.test/list')
+  chunks=[]
+  while True:
+   part=store.read(result['handle'])
+   if part['done']:break
+   block=base64.b64decode(part['data']);self.assertLessEqual(len(block),65536);chunks.append(block)
+  self.assertEqual(b''.join(chunks),body)
+  store.close(result['handle']);self.assertEqual(store.files,{})
+  with self.assertRaises(KeyError):store.read(result['handle'])
+  store.shutdown()
+ def test_failed_download_retains_no_handle(self):
+  from network import PlaylistDownloads
+  store=PlaylistDownloads();response=Reply(b'partial','text/plain');response.headers['Content-Length']='100'
+  with patch('network.urlopen',return_value=response):
+   with self.assertRaises(ValueError):store.download('https://example.test/list')
+  self.assertEqual(store.files,{})
+  store.shutdown()
+ def test_shutdown_rejects_completed_download(self):
+  from network import PlaylistDownloads
+  store=PlaylistDownloads();store.shutdown()
+  with patch('network.urlopen',return_value=Reply(b'data','text/plain')):
+   with self.assertRaises(ValueError):store.download('https://example.test/list')
+  self.assertEqual(store.files,{})

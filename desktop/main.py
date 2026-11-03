@@ -3,6 +3,8 @@ import os
 import sys
 import json
 import mimetypes
+import time
+import uuid
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
@@ -18,13 +20,15 @@ else:
     # libVLC embedding uses an X11 window ID; XWayland is supported.
     os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
 
-from PySide6.QtCore import QObject, Signal, Slot, QUrl, QBuffer, QByteArray, QIODevice, Qt, QTimer, QStandardPaths
+from PySide6.QtCore import QObject, Signal, Slot, QUrl, QBuffer, QByteArray, QIODevice, Qt, QTimer, QStandardPaths, QSettings
 from PySide6.QtGui import QIcon, QShortcut, QKeySequence
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QStackedWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider, QComboBox, QMessageBox
 from PySide6.QtWebEngineCore import QWebEngineUrlScheme, QWebEngineUrlSchemeHandler, QWebEngineUrlRequestJob, QWebEngineProfile, QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
-from network import download, valid_url
+from network import download, valid_url, PlaylistDownloads
+from playback_queue import PlaybackQueue
+from i18n import Translator
 
 scheme = QWebEngineUrlScheme(b'tucatv')
 scheme.setSyntax(QWebEngineUrlScheme.Syntax.HostAndPort)
@@ -59,34 +63,60 @@ class TrustedPage(QWebEnginePage):
 class Bridge(QObject):
     completed = Signal(str, str)
     progress = Signal(str, float, float)
+    playbackState = Signal(str)
     def __init__(self, window):
         super().__init__(window); self.window = window; self.pool = ThreadPoolExecutor(max_workers=4)
+        self.downloads = PlaylistDownloads(); self.queues = {}
     @Slot(str, str, str)
     def request(self, request_id, method, raw):
         try:
             payload = json.loads(raw)
+            if method == 'setLanguage':
+                self.window.set_language(payload.get('language')); self.completed.emit(request_id, '{}'); return
+            if method == 'beginQueue':
+                for queue in self.queues.values(): queue.close()
+                self.queues.clear()
+                handle = str(uuid.uuid4()); self.queues[handle] = PlaybackQueue()
+                self.completed.emit(request_id, json.dumps({'handle': handle})); return
+            if method in ('appendQueue', 'closeQueue'):
+                handle = payload.get('handle')
+                if method == 'appendQueue': self.queues[handle].append(payload.get('items', []))
+                else:
+                    queue = self.queues.pop(handle, None)
+                    if queue: queue.close()
+                self.completed.emit(request_id, '{}'); return
+            if method == 'getPlaybackState':
+                self.completed.emit(request_id, json.dumps(self.window.playback_state())); return
             if method == 'play':
                 valid_url(payload.get('url')); self.window.play(payload)
                 self.completed.emit(request_id, '{}'); return
-            if method not in ('text', 'image'):
-                raise ValueError('Operazione non supportata')
-            url = valid_url(payload.get('url'))
-            future = self.pool.submit(download, url, method == 'image', (lambda received,total: self.progress.emit(request_id,received,total)) if method == 'text' else None)
+            progress = lambda received,total: self.progress.emit(request_id,received,total)
+            if method == 'downloadPlaylist':
+                future = self.pool.submit(self.downloads.download, valid_url(payload.get('url')), progress)
+            elif method == 'readPlaylistChunk':
+                future = self.pool.submit(self.downloads.read, payload.get('handle'))
+            elif method == 'closePlaylist':
+                future = self.pool.submit(self.downloads.close, payload.get('handle'))
+            elif method in ('text', 'image'):
+                future = self.pool.submit(download, valid_url(payload.get('url')), method == 'image', progress if method == 'text' else None)
+            else: raise ValueError('Operazione non supportata')
             def done(task):
-                try: result = {'data': task.result()}
-                except Exception: result = {'error': 'Sorgente non disponibile o formato non valido'}
+                try:
+                    value = task.result(); result = value if isinstance(value, dict) else {'data': value}
+                except Exception: result = {'error': self.window.tr('Sorgente non disponibile o formato non valido')}
                 try: self.completed.emit(request_id, json.dumps(result))
                 except RuntimeError: pass
             future.add_done_callback(done)
         except Exception:
-            self.completed.emit(request_id, json.dumps({'error': 'Impossibile aprire la sorgente'}))
+            self.completed.emit(request_id, json.dumps({'error': self.window.tr('Impossibile aprire la sorgente')}))
 
 
 class Window(QMainWindow):
     def __init__(self):
         super().__init__(); self.setWindowTitle('TucaTV'); self.resize(1280, 800); self.setMinimumSize(760, 540)
+        self.settings = QSettings(); self.translator = Translator(ROOT / 'web', self.settings.value('language')); self.translated_widgets = []
         self.setWindowIcon(QIcon(str(ROOT / 'web' / 'tucatv-mark.svg')))
-        self.engine = None; self.player = None; self.queue = []; self.index = 0; self.dragging = False; self.tracks_loaded = False
+        self.engine = None; self.player = None; self.queue = PlaybackQueue(); self.playlist_id = ''; self.last_played = None; self.confirmed = False; self.index = 0; self.dragging = False; self.tracks_loaded = False
         self.stack = QStackedWidget(); self.setCentralWidget(self.stack)
         self.web = QWebEngineView(); self.stack.addWidget(self.web)
         self.profile = QWebEngineProfile('TucaTV', self)
@@ -106,10 +136,10 @@ class Window(QMainWindow):
         self.seek = QSlider(Qt.Orientation.Horizontal); self.seek.setRange(0, 1000); self.seek.sliderPressed.connect(lambda: setattr(self, 'dragging', True)); self.seek.sliderReleased.connect(self.seek_to); layout.addWidget(self.seek)
         controls = QHBoxLayout(); controls.addWidget(self.button('⏮ Precedente', lambda: self.step(-1)))
         self.toggle_button = self.button('Pausa', self.toggle); controls.addWidget(self.toggle_button); controls.addWidget(self.button('Successivo ⏭', lambda: self.step(1)))
-        controls.addWidget(self.button('Riprova', self.retry)); controls.addWidget(QLabel('Volume'))
+        controls.addWidget(self.button('Riprova', self.retry)); controls.addWidget(self.label('Volume'))
         self.volume = QSlider(Qt.Orientation.Horizontal); self.volume.setRange(0, 100); self.volume.setValue(80); self.volume.setMaximumWidth(130); self.volume.valueChanged.connect(lambda v: self.player.audio_set_volume(v) if self.player else None); controls.addWidget(self.volume)
         self.elapsed = QLabel(''); controls.addWidget(self.elapsed); controls.addStretch(); layout.addLayout(controls)
-        tracks = QHBoxLayout(); tracks.addWidget(QLabel('Audio')); self.audio = QComboBox(); tracks.addWidget(self.audio); tracks.addWidget(QLabel('Sottotitoli')); self.subtitles = QComboBox(); tracks.addWidget(self.subtitles); tracks.addStretch(); layout.addLayout(tracks)
+        tracks = QHBoxLayout(); tracks.addWidget(self.label('Audio')); self.audio = QComboBox(); tracks.addWidget(self.audio); tracks.addWidget(self.label('Sottotitoli')); self.subtitles = QComboBox(); tracks.addWidget(self.subtitles); tracks.addStretch(); layout.addLayout(tracks)
         self.audio.activated.connect(lambda i: self.player.audio_set_track(self.audio.itemData(i)))
         self.subtitles.activated.connect(lambda i: self.player.video_set_spu(self.subtitles.itemData(i)))
         self.stack.addWidget(self.screen)
@@ -117,8 +147,16 @@ class Window(QMainWindow):
         QShortcut(QKeySequence('Escape'), self, activated=self.escape)
         QShortcut(QKeySequence('Space'), self.screen, activated=self.toggle)
         QShortcut(QKeySequence('F'), self.screen, activated=self.fullscreen)
+    def tr(self, key):
+        return self.translator.text(key)
+    def set_language(self, language):
+        self.translator.set_language(language); self.settings.setValue('language', language)
+        for widget, key in self.translated_widgets: widget.setText(self.tr(key))
+        if self.player: self.update_player()
+    def label(self, key):
+        widget = QLabel(self.tr(key)); self.translated_widgets.append((widget, key)); return widget
     def button(self, title, callback):
-        button = QPushButton(title); button.setMinimumHeight(40); button.clicked.connect(callback); return button
+        button = QPushButton(self.tr(title)); self.translated_widgets.append((button, title)); button.setMinimumHeight(40); button.clicked.connect(callback); return button
     def ensure_engine(self):
         if self.engine: return
         import vlc
@@ -133,15 +171,18 @@ class Window(QMainWindow):
     def play(self, payload):
         try: self.ensure_engine()
         except Exception:
-            QMessageBox.warning(self, 'Player non disponibile', 'Il motore VLC non è disponibile. Su Linux installa libvlc5 e i plugin VLC; su Windows estrai l’intero archivio TucaTV, inclusa la cartella vlc.'); raise
-        queue = payload.get('queue', [])
-        self.queue = [{'url': valid_url(x['url']), 'title': str(x.get('title', 'TucaTV'))[:300]} for x in queue[:101]]
-        if not self.queue: self.queue = [{'url': valid_url(payload['url']), 'title': str(payload.get('title', 'TucaTV'))[:300]}]
+            QMessageBox.warning(self, self.tr('Player non disponibile'), self.tr('Il motore VLC non è disponibile. Su Linux installa libvlc5 e i plugin VLC; su Windows estrai l’intero archivio TucaTV, inclusa la cartella vlc.')); raise
+        queue = self.bridge.queues.pop(payload.get('queueHandle'), None)
+        if queue is None or not len(queue):
+            if queue is not None: queue.close()
+            raise ValueError('Coda non disponibile')
+        self.queue.close(); self.queue = queue
+        self.playlist_id = payload.get('playlistId', '')
         self.index = max(0, min(int(payload.get('index', 0)), len(self.queue)-1))
         self.stack.setCurrentWidget(self.screen); self.retry()
     def retry(self):
         if not self.player or not self.queue: return
-        self.player.stop(); item = self.queue[self.index]; self.title.setText(item['title']); self.status.setText('Connessione…'); self.tracks_loaded = False
+        self.player.stop(); item = self.queue[self.index]; self.title.setText(item['title']); self.status.setText(self.tr('Connessione…')); self.tracks_loaded = False; self.confirmed = False
         self.audio.clear(); self.subtitles.clear(); media = self.engine.media_new_location(item['url']); self.player.set_media(media); media.release()
         self.player.audio_set_volume(self.volume.value()); self.player.play(); self.timer.start()
     def step(self, delta):
@@ -160,12 +201,19 @@ class Window(QMainWindow):
         self.timer.stop()
         if self.player: self.player.stop()
         self.stack.setCurrentWidget(self.web)
+    def playback_state(self):
+        return {'available': self.stack.currentWidget() == self.screen and bool(self.queue),
+                'lastPlayed': self.last_played}
     def update_player(self):
         if not self.player: return
-        state = self.player.get_state(); self.toggle_button.setText('Pausa' if self.player.is_playing() else 'Riproduci')
-        if state == self.vlc.State.Error: self.status.setText('Riproduzione fallita: controlla sorgente, connessione e accesso.'); self.timer.stop()
-        elif state in (self.vlc.State.Opening, self.vlc.State.Buffering): self.status.setText('Connessione / buffering…')
-        elif state == self.vlc.State.Ended: self.status.setText('Riproduzione terminata')
+        if self.player.is_playing() and not self.confirmed:
+            self.confirmed = True
+            self.last_played = {'url': self.queue[self.index]['url'], 'playlistId': self.playlist_id, 'at': int(time.time()*1000)}
+            self.bridge.playbackState.emit(json.dumps(self.playback_state()))
+        state = self.player.get_state(); self.toggle_button.setText(self.tr('Pausa' if self.player.is_playing() else 'Riproduci'))
+        if state == self.vlc.State.Error: self.status.setText(self.tr('Riproduzione fallita: controlla sorgente, connessione e accesso.')); self.timer.stop()
+        elif state in (self.vlc.State.Opening, self.vlc.State.Buffering): self.status.setText(self.tr('Connessione / buffering…'))
+        elif state == self.vlc.State.Ended: self.status.setText(self.tr('Riproduzione terminata'))
         else: self.status.setText('')
         self.seek.setEnabled(bool(self.player.is_seekable()))
         if not self.dragging: self.seek.setValue(max(0, int(self.player.get_position()*1000)))
@@ -182,6 +230,9 @@ class Window(QMainWindow):
         self.timer.stop()
         if self.player: self.player.stop(); self.player.release()
         if self.engine: self.engine.release()
+        self.queue.close()
+        for queue in self.bridge.queues.values(): queue.close()
+        self.bridge.downloads.shutdown()
         self.bridge.pool.shutdown(wait=False, cancel_futures=True)
         self.web.setPage(QWebEnginePage(self.web)); self.page.deleteLater()
         event.accept()

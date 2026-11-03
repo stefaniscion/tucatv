@@ -60,3 +60,7 @@ Thumbs.db
 *.log
 # Hosting metadata belongs to the deployment, not this distribution
 .openai/
+
+# Browser test output
+playwright-report/
+test-results/

@@ -9,11 +9,11 @@ export function kind(c) {
 }
 export function catalogue(channels, mode, query, group, favorites) {
  const q=query.trim().toLocaleLowerCase('it');
- return channels.filter(c=>!separator(c)&&(mode==='all'||kind(c)===mode)&&(group==='Tutti'||group==='Preferiti'&&favorites.includes(c.url)||c.group===group)&&c.name.toLocaleLowerCase('it').includes(q));
+ return channels.filter(c=>!separator(c)&&(mode==='all'||kind(c)===mode)&&(group==='__all'||group==='__favorites'&&favorites.includes(c.url)||c.group===group)&&c.name.toLocaleLowerCase('it').includes(q));
 }
-export function shelves(items, limit=12) {
+export function shelves(items, limit=12, itemLimit=20) {
  const groups=new Map();
- for(const c of items){const key=c.group||'Altri';if(!groups.has(key)){if(groups.size>=limit)continue;groups.set(key,[]);}if(groups.get(key).length<20)groups.get(key).push(c);}
+ for(const c of items){const key=c.group||'Altri';if(!groups.has(key)){if(groups.size>=limit)continue;groups.set(key,[]);}if(groups.get(key).length<itemLimit)groups.get(key).push(c);}
  return [...groups].map(([name,items])=>({name,items}));
 }
 
@@ -24,9 +24,9 @@ export function indexCatalogue(channels){
  return {live,vod,liveGroups:[...liveGroups],vodGroups:[...vodGroups]};
 }
 export function filterCatalogue(items,query,group,favorites){
- const q=query.trim().toLocaleLowerCase('it');if(!q&&group==='Tutti')return items;
- const liked=group==='Preferiti'?new Set(favorites):null;
- return items.filter(c=>(group==='Tutti'||(liked?liked.has(c.url):c.group===group))&&(!q||c.name.toLocaleLowerCase('it').includes(q)));
+ const q=query.trim().toLocaleLowerCase('it');if(!q&&group==='__all')return items;
+ const liked=group==='__favorites'?new Set(favorites):null;
+ return items.filter(c=>(group==='__all'||(liked?liked.has(c.url):c.group===group))&&(!q||c.name.toLocaleLowerCase('it').includes(q)));
 }
 export function currentGuide(programs,clock){
  const now=new Map(),next=new Map();

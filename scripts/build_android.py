@@ -53,7 +53,7 @@ def main():
     run([align, "-p", "-f", "4", unsigned, aligned])
     try:
         run([signer, "sign", "--ks", key, "--ks-key-alias", alias,
-             "--ks-pass", f"file:{password}", "--key-pass", f"file:{password}",
+             "--ks-pass", f"file:{password}",
              "--out", pending, aligned])
         run([signer, "verify", "--verbose", "--print-certs", pending])
         pending.replace(output)

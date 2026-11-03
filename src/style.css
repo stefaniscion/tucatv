@@ -63,3 +63,21 @@ html,body,#app{height:100%;width:100%;overflow:hidden}
 .tv-first.shell.android-shell{padding:0}
 
 .tv-first .tv-card{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:center;min-width:0;border:1px solid #353535;border-radius:8px;background:#151515}.tv-first .tv-card .tv-tile{height:100%;width:100%;border:0;background:transparent;min-width:0}.tv-first .tv-favorite{width:40px;height:44px;min-height:44px;padding:0;border:0;background:transparent;color:#ff8a24;font-size:24px;scroll-margin:24px}.tv-first .tv-card button:focus{background:#39220f}.tv-first .tv-card .tv-title{min-width:0}.tv-first .tv-card:focus-within{border-color:#ff8a24}@media(max-width:500px){.tv-first .tv-card .tv-logo{display:none}.tv-first .tv-card .tv-tile{flex-wrap:nowrap}.tv-first .tv-card .tv-title strong{font-size:12px}}
+
+/* Artwork sits above the type label, without overlapping it. */
+.tv-first .media-art{display:flex;flex-direction:column;align-items:stretch}
+.tv-first .media-art>.logo-frame{position:static;inset:auto;width:100%;height:auto;flex:1;min-height:0;padding:12px}
+.tv-first .media-art .media-type{position:static;align-self:flex-start;margin:0 8px 8px;flex-shrink:0}
+.tv-first .epgbutton{display:block;flex-shrink:0;margin:0}
+.tv-first .epgbutton input{max-width:220px;min-height:40px}
+.load-more{display:block;margin:16px auto;min-height:44px;flex-shrink:0}
+.shelf-track>.load-more{align-self:center;max-width:180px;white-space:normal}
+.catalog-count{font-size:12px}
+@media(max-width:700px){.tv-first .toolbar{flex-wrap:wrap}.tv-first .epgbutton{width:100%}}
+
+/* The language control remains reachable in the compact TV rail layout. */
+.tv-first header>div{display:flex;align-items:center;gap:8px}
+.tv-first .language-switch{display:flex;align-items:center;gap:6px;margin:0}
+.tv-first .language-switch>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.tv-first .language-switch select{margin:0;min-height:32px;max-width:110px;padding:4px 8px;font-size:12px}
+@media(max-width:500px){.tv-first .language-switch select{max-width:92px}}
