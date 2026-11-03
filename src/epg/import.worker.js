@@ -44,7 +44,10 @@ self.onmessage = async ({ data }) => {
         let bytes = 0,
             batch = [],
             retained = 0;
-        const parser = xmltvParser((p) => batch.push(p), { now: data.now });
+        const parser = xmltvParser((p) => batch.push(p), {
+            now: data.now,
+            channels: new Set(data.channels),
+        });
         const flush = async () => {
             if (batch.length) {
                 retained += batch.length;
@@ -61,13 +64,14 @@ self.onmessage = async ({ data }) => {
                 throw Error('The guide exceeds the 256 MiB limit or contains an oversized field.');
             for (let i = 0; i < value.length; i += 65536) {
                 parser.write(decoder.decode(value.subarray(i, i + 65536), { stream: true }));
-                if (batch.length >= 500) await flush();
+                if (batch.length >= 2000) await flush();
             }
         }
         parser.write(decoder.decode());
         const parsed = parser.close();
         await flush();
-        if (!retained) throw Error('The guide contains no recent programmes.');
+        // A valid source with no matching tvg-id is still a successful import.
+        // Recording it prevents downloading the same irrelevant source every hour.
         self.postMessage({ type: 'done', count: retained, parsed, bytes });
     } catch (error) {
         self.postMessage({

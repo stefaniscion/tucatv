@@ -131,6 +131,12 @@ public class NativePlayerPlugin extends Plugin {
         notifyListeners("downloadProgress", event);
     }
 
+    private static String conditionalHeader(String value) {
+        return value != null && value.length() <= 1024 && value.indexOf('\r') < 0 && value.indexOf('\n') < 0
+            ? value
+            : "";
+    }
+
     @PluginMethod
     public void text(PluginCall call) {
         String value = call.getString("url", "");
@@ -213,7 +219,17 @@ public class NativePlayerPlugin extends Plugin {
                     30000,
                     "application/octet-stream, application/x-xz, application/xml;q=0.9, text/xml;q=0.9"
                 );
+                String etag = conditionalHeader(call.getString("etag", ""));
+                String lastModified = conditionalHeader(call.getString("lastModified", ""));
+                if (!etag.isEmpty()) connection.setRequestProperty("If-None-Match", etag);
+                if (!lastModified.isEmpty()) connection.setRequestProperty("If-Modified-Since", lastModified);
                 int status = connection.getResponseCode();
+                if (status == java.net.HttpURLConnection.HTTP_NOT_MODIFIED) {
+                    JSObject result = new JSObject();
+                    result.put("notModified", true);
+                    call.resolve(result);
+                    return;
+                }
                 if (status < 200 || status >= 300) {
                     call.reject(tr("The source returned HTTP ") + status);
                     return;
@@ -249,6 +265,10 @@ public class NativePlayerPlugin extends Plugin {
                 JSObject result = new JSObject();
                 result.put("handle", handle);
                 result.put("size", size);
+                String responseEtag = connection.getHeaderField("ETag");
+                String responseLastModified = connection.getHeaderField("Last-Modified");
+                result.put("etag", responseEtag == null ? "" : responseEtag);
+                result.put("lastModified", responseLastModified == null ? "" : responseLastModified);
                 call.resolve(result);
                 retained = true;
             } catch (Exception error) {
@@ -273,7 +293,7 @@ public class NativePlayerPlugin extends Plugin {
                     call.reject(tr("Import expired: please try again."));
                     return;
                 }
-                byte[] block = new byte[65536];
+                byte[] block = new byte[262144];
                 int count = input.read(block);
                 JSObject result = new JSObject();
                 result.put("done", count == -1);

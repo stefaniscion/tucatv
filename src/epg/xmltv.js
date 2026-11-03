@@ -8,7 +8,7 @@ export function xmltvDate(value) {
         : NaN;
 }
 // SAX keeps one programme in memory. External entities are never fetched.
-export function xmltvParser(onProgramme, { now = Date.now() } = {}) {
+export function xmltvParser(onProgramme, { now = Date.now(), channels } = {}) {
     const parser = new SaxesParser();
     let depth = 0,
         root = false,
@@ -33,8 +33,9 @@ export function xmltvParser(onProgramme, { now = Date.now() } = {}) {
                 end: xmltvDate(tag.attributes.stop),
                 title: '',
                 description: '',
+                included: !channels || channels.has(tag.attributes.channel || ''),
             };
-        if (programme && depth === 3 && ['title', 'desc'].includes(tag.name)) {
+        if (programme?.included && depth === 3 && ['title', 'desc'].includes(tag.name)) {
             field = tag.name;
             text = '';
             fieldDepth = depth;
@@ -61,7 +62,10 @@ export function xmltvParser(onProgramme, { now = Date.now() } = {}) {
             if (p.channel && p.channel.length <= 512 && Number.isFinite(p.start) && p.end > p.start) {
                 count++;
                 // Bound persistent history while retaining all channels and the next two weeks.
-                if (p.end > now - 86400000 && p.start < now + 14 * 86400000) onProgramme(p);
+                if (p.included && p.end > now - 86400000 && p.start < now + 14 * 86400000) {
+                    delete p.included;
+                    onProgramme(p);
+                }
             }
         }
         depth--;

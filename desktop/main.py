@@ -151,7 +151,15 @@ class Bridge(QObject):
                 return
             progress = lambda received, total: self.progress.emit(request_id, received, total)
             if method == "downloadPlaylist":
-                future = self.pool.submit(self.downloads.download, valid_url(payload.get("url")), progress)
+                future = self.pool.submit(
+                    self.downloads.download,
+                    valid_url(payload.get("url")),
+                    progress,
+                    {
+                        "etag": payload.get("etag", ""),
+                        "lastModified": payload.get("lastModified", ""),
+                    },
+                )
             elif method == "readPlaylistChunk":
                 future = self.pool.submit(self.downloads.read, payload.get("handle"))
             elif method == "closePlaylist":

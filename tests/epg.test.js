@@ -48,3 +48,19 @@ test('old programmes and invalid times are discarded and CDATA survives', () => 
     assert.equal(items.length, 1);
     assert.equal(items[0].title, 'A & B');
 });
+test('XMLTV parsing retains only tvg-id values used by playlists', () => {
+    const items = [],
+        parser = xmltvParser((programme) => items.push(programme), {
+            now,
+            channels: new Set(['wanted']),
+        });
+    parser.write(
+        '<tv><programme channel="unused" start="20261103120000 +0000" stop="20261103140000 +0000"><title>Skip</title><desc>Do not store this field</desc></programme><programme channel="wanted" start="20261103120000 +0000" stop="20261103140000 +0000"><title>Keep</title></programme></tv>',
+    );
+    assert.equal(parser.close(), 2);
+    assert.deepEqual(
+        items.map((programme) => programme.channel),
+        ['wanted'],
+    );
+    assert.equal(items[0].title, 'Keep');
+});

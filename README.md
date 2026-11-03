@@ -2,7 +2,7 @@
 
 Client-side IPTV player with a shared Svelte 5 / Tailwind CSS 4 interface. Supports M3U files and URLs, XMLTV, Live/VOD browsing, favorites, hidden categories, TV remote navigation and a responsive timeline/agenda TV guide.
 
-**Version:** 1.13.2. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
+**Version:** 0.13.3. Android uses Capacitor 6 and libVLC; Windows/Linux use Python, PySide6 and libVLC. No application server is required. iOS, Tizen and webOS are not implemented.
 
 ## Web
 
@@ -42,7 +42,7 @@ For a signed release, run from the repository root:
 npm run android:release
 ```
 
-Output: `artifacts/android/TucaTV-1.13.2.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
+Output: `artifacts/android/TucaTV-0.13.3.apk`. The script builds, aligns, signs and verifies the APK. It expects `signing/tucatv-release.p12` and `signing/password.txt`, with alias `tucatv`. Alternative paths: `TUCATV_KEYSTORE`, `TUCATV_KEYSTORE_PASSWORD_FILE`, `TUCATV_KEY_ALIAS`.
 
 Signing inputs are excluded from Git. Android application ID: `it.stefaniscion.tucatv`.
 

@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 import uuid
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
@@ -19,10 +20,32 @@ def valid_url(value):
     return value
 
 
-def transfer(url, sink, limit, on_progress=None):
+def conditional_header(value):
+    return (
+        value
+        if isinstance(value, str) and len(value) <= 1024 and "\r" not in value and "\n" not in value
+        else ""
+    )
+
+
+def transfer(url, sink, limit, on_progress=None, conditions=None):
     valid_url(url)
-    request = Request(url, headers={"Accept-Encoding": "identity", "User-Agent": "TucaTV/1.13.2"})
-    with urlopen(request, timeout=15) as response:
+    headers = {"Accept-Encoding": "identity", "User-Agent": "TucaTV/0.13.3"}
+    conditions = conditions or {}
+    etag = conditional_header(conditions.get("etag"))
+    last_modified = conditional_header(conditions.get("lastModified"))
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    request = Request(url, headers=headers)
+    try:
+        response = urlopen(request, timeout=15)
+    except HTTPError as error:
+        if error.code == 304:
+            return 0, error.headers, True
+        raise
+    with response:
         valid_url(response.url)
         # urllib does not decompress responses. Reject unsolicited encoding rather
         # than parse compressed bytes or compare incompatible byte counts.
@@ -55,12 +78,12 @@ def transfer(url, sink, limit, on_progress=None):
             raise ValueError("Download incompleto")
         if on_progress:
             on_progress(received, total)
-        return received, response.headers
+        return received, response.headers, False
 
 
 def download(url, image=False, on_progress=None):
     sink = io.BytesIO()
-    _, headers = transfer(url, sink, 2 * 1024 * 1024 if image else 64 * 1024 * 1024, on_progress)
+    _, headers, _ = transfer(url, sink, 2 * 1024 * 1024 if image else 64 * 1024 * 1024, on_progress)
     data = sink.getvalue()
     if image:
         mime = headers.get_content_type()
@@ -78,10 +101,15 @@ class PlaylistDownloads:
         self.lock = threading.Lock()
         self.closed = False
 
-    def download(self, url, on_progress=None):
+    def download(self, url, on_progress=None, conditions=None):
         stream = tempfile.TemporaryFile()
         try:
-            size, _ = transfer(url, stream, 256 * 1024 * 1024, on_progress)
+            size, headers, not_modified = transfer(
+                url, stream, 256 * 1024 * 1024, on_progress, conditions
+            )
+            if not_modified:
+                stream.close()
+                return {"notModified": True}
             stream.seek(0)
             with self.lock:
                 if self.closed:
@@ -90,7 +118,12 @@ class PlaylistDownloads:
                     raise ValueError("Troppe importazioni simultanee")
                 handle = str(uuid.uuid4())
                 self.files[handle] = stream
-            return {"handle": handle, "size": size}
+            return {
+                "handle": handle,
+                "size": size,
+                "etag": headers.get("ETag", ""),
+                "lastModified": headers.get("Last-Modified", ""),
+            }
         except BaseException:
             stream.close()
             raise
@@ -98,7 +131,7 @@ class PlaylistDownloads:
     def read(self, handle):
         with self.lock:
             stream = self.files[handle]
-            block = stream.read(65536)
+            block = stream.read(262144)
             return {"done": not block, "data": base64.b64encode(block).decode("ascii")}
 
     def close(self, handle):

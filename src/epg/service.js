@@ -12,7 +12,9 @@ import {
 } from './database.js';
 export { sources, lookupGuide, lookupSchedule };
 const DAY = 86400000,
-    MAX_BYTES = 256 * 1024 * 1024;
+    MAX_BYTES = 256 * 1024 * 1024,
+    MIRROR_BACKOFF = 6 * 3600000,
+    IMPORT_CONCURRENCY = 2;
 const EPG_ERRORS = new Set([
     'Invalid or unsupported XMLTV/XZ file.',
     'The guide contains no valid programmes.',
@@ -58,7 +60,53 @@ let task,
     controller,
     initialized = false,
     autoTimer,
-    ready;
+    ready,
+    rerun = false,
+    channelIds = [],
+    channelSignature = '0:0';
+
+function signature(ids) {
+    let hash = 2166136261;
+    for (const id of ids) {
+        for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619);
+        hash = Math.imul(hash ^ 0, 16777619);
+    }
+    return `${ids.length}:${(hash >>> 0).toString(16)}`;
+}
+
+export function setEpgPlaylists(playlists = []) {
+    const next = [
+            ...new Set(
+                playlists.flatMap((playlist) =>
+                    (playlist.channels || [])
+                        .map((channel) => channel.tvg?.trim())
+                        .filter((id) => id && id.length <= 512),
+                ),
+            ),
+        ].sort(),
+        nextSignature = signature(next);
+    if (nextSignature === channelSignature) return;
+    channelIds = next;
+    channelSignature = nextSignature;
+    if (initialized && storeValue(epgPreferences).automatic) {
+        if (task) rerun = true;
+        else void refreshEpg(false);
+    }
+}
+
+function loadMirrorHealth() {
+    try {
+        return JSON.parse(localStorage.getItem('tucatv-epg-mirrors')) || {};
+    } catch {
+        return {};
+    }
+}
+
+function saveMirrorHealth(value) {
+    try {
+        localStorage.setItem('tucatv-epg-mirrors', JSON.stringify(value));
+    } catch {}
+}
 export function configureEpg(values) {
     const next = { ...storeValue(epgPreferences), ...values };
     try {
@@ -78,8 +126,9 @@ async function loadMetadata() {
     const records = Object.fromEntries((await metadata()).map((s) => [s.id, s]));
     epgState.update((s) => ({ ...s, records, revision: s.revision + 1 }));
 }
-export async function startEpg() {
+export async function startEpg(playlists = []) {
     if (initialized) return;
+    setEpgPlaylists(playlists);
     initialized = true;
     ready = (async () => {
         await cleanOrphans();
@@ -110,11 +159,11 @@ export async function clearEpg() {
     patch({ records: {}, errors: {} });
     await loadMetadata();
 }
-async function openStream(url, signal) {
+async function openStream(url, signal, cache, onProgress) {
     if (signal.aborted) throw Error('EPG update stopped.');
     if (isNative) {
         try {
-            const download = await nativePlaylist(url, (p) => patch({ received: p.received }));
+            const download = await nativePlaylist(url, onProgress, cache);
             if (signal.aborted) {
                 await download.dispose();
                 throw Error('EPG update stopped.');
@@ -134,6 +183,8 @@ async function openStream(url, signal) {
         return {
             stream: response.body,
             total: response.headers.get('content-encoding') ? 0 : Number(response.headers.get('content-length')) || 0,
+            etag: response.headers.get('etag') || '',
+            lastModified: response.headers.get('last-modified') || '',
             dispose: async () => {},
         };
     } catch (error) {
@@ -143,7 +194,7 @@ async function openStream(url, signal) {
             : Error('Download failed. Check the connection and, in the browser, CORS permissions.');
     }
 }
-async function importStream(download, generation, signal) {
+async function importStream(download, generation, signal, channels, onProgress) {
     const reader = download.stream.getReader();
     let worker,
         total = download.total,
@@ -152,6 +203,7 @@ async function importStream(download, generation, signal) {
         const part = await reader.read();
         if (!part.done) {
             received += part.value.byteLength;
+            onProgress({ received });
             if (received > MAX_BYTES)
                 throw Error('The guide exceeds the 256 MiB limit or contains an oversized field.');
         } else if (total && received !== total) throw Error('The download is incomplete.');
@@ -210,11 +262,11 @@ async function importStream(download, generation, signal) {
                         finish(error);
                     }
                 } else if (data.type === 'progress')
-                    patch({ bytes: data.bytes, count: data.count, phase: 'Reading and saving the guide…' });
+                    onProgress({ bytes: data.bytes, count: data.count, phase: 'Reading and saving the guide…' });
                 else if (data.type === 'done') finish(null, data);
                 else if (data.type === 'error') finish(Error(data.error));
             };
-            worker.postMessage({ type: 'start', generation, format, now: Date.now() });
+            worker.postMessage({ type: 'start', generation, format, now: Date.now(), channels });
         });
         // XZ may finish before requesting EOF; validate the underlying transfer too.
         const tail = await read();
@@ -227,69 +279,228 @@ async function importStream(download, generation, signal) {
         await download.dispose();
     }
 }
+function orderedMirrors(source, record, health) {
+    const state = health[source.id] || {},
+        preferred = record?.url || state.preferred,
+        recentFailure = (url) => Date.now() - (state.failures?.[url] || 0) < MIRROR_BACKOFF;
+    return [...source.urls].sort((a, b) => {
+        const delayed = Number(recentFailure(a)) - Number(recentFailure(b));
+        if (delayed) return delayed;
+        return Number(b === preferred) - Number(a === preferred);
+    });
+}
+
+function updateMirror(health, source, url, success) {
+    const state = (health[source.id] ||= { failures: {} });
+    state.failures ||= {};
+    if (success) {
+        state.preferred = url;
+        delete state.failures[url];
+    } else state.failures[url] = Date.now();
+}
+
+function publishRecord(source, record) {
+    epgState.update((state) => ({
+        ...state,
+        records: { ...state.records, [source.id]: record },
+        revision: state.revision + 1,
+    }));
+}
+
+function prioritizeSources(items, records, signature) {
+    const language = (document.documentElement.lang || navigator.language || 'en').toLowerCase().split('-')[0],
+        keywords =
+            {
+                bg: ['bulgaria'],
+                cs: ['ceska'],
+                da: ['danmark'],
+                de: ['deutschland'],
+                el: ['ellada'],
+                en: ['uk xmltv'],
+                fi: ['suomi'],
+                fr: ['france'],
+                hr: ['croatia'],
+                it: ['italia'],
+                nl: ['nederland'],
+                no: ['norge'],
+                pt: ['portugal'],
+                ro: ['romania'],
+                sk: ['slovensko'],
+                sl: ['slovenia'],
+                sr: ['serbia'],
+                sv: ['sverige'],
+            }[language] || [],
+        score = (source) => {
+            const record = records[source.id],
+                label = `${source.group} ${source.name}`.toLowerCase();
+            if (record?.channels === signature && record.count > 0) return 0;
+            if (keywords.some((keyword) => label.includes(keyword))) return 1;
+            if (record?.channels === signature) return 2;
+            if (label.includes('general xmltv')) return 3;
+            return 4;
+        };
+    return [...items].sort((a, b) => score(a) - score(b));
+}
+
+function usefulFailure(previous, candidate) {
+    const rank = (message) => {
+        if (message === 'Unable to save EPG data. Check available storage.') return 4;
+        if (message === 'Invalid or unsupported XMLTV/XZ file.') return 3;
+        if (message === 'The source timed out.') return 2;
+        return 1;
+    };
+    return !previous || rank(candidate) > rank(previous) ? candidate : previous;
+}
+
+async function updateSource(source, old, signal, channels, signature, health, progress, retired) {
+    let failure;
+    for (const url of orderedMirrors(source, old, health)) {
+        if (signal.aborted) break;
+        const generation = crypto.randomUUID(),
+            attempt = new AbortController();
+        let timedOut = false,
+            stallTimer;
+        const abort = () => attempt.abort(),
+            timeout = () => {
+                timedOut = true;
+                attempt.abort();
+            },
+            touch = () => {
+                clearTimeout(stallTimer);
+                stallTimer = setTimeout(timeout, 45000);
+            },
+            report = (values) => {
+                touch();
+                progress(source, values);
+            };
+        signal.addEventListener('abort', abort, { once: true });
+        touch();
+        const hardTimer = setTimeout(timeout, 180000);
+        try {
+            const cache =
+                    old?.url === url && old.channels === signature
+                        ? { etag: old.etag, lastModified: old.lastModified }
+                        : {},
+                download = await openStream(url, attempt.signal, cache, report);
+            if (download.notModified) {
+                const record = { ...old, updated: Date.now(), url };
+                await commitSource(record);
+                publishRecord(source, record);
+                updateMirror(health, source, url, true);
+                return null;
+            }
+            const result = await importStream(download, generation, attempt.signal, channels, report);
+            if (signal.aborted) throw Error('EPG update stopped.');
+            const record = {
+                id: source.id,
+                generation,
+                updated: Date.now(),
+                count: result.count,
+                channels: signature,
+                url,
+                etag: download.etag || '',
+                lastModified: download.lastModified || '',
+            };
+            await commitSource(record);
+            publishRecord(source, record);
+            if (old?.generation && old.generation !== generation) retired.add(old.generation);
+            updateMirror(health, source, url, true);
+            return null;
+        } catch (error) {
+            await deleteGeneration(generation).catch(() => {});
+            updateMirror(health, source, url, false);
+            const candidate = signal.aborted
+                ? 'EPG update stopped.'
+                : timedOut
+                  ? 'The source timed out.'
+                  : EPG_ERRORS.has(error.message)
+                    ? error.message
+                    : error.name === 'QuotaExceededError'
+                      ? 'Unable to save EPG data. Check available storage.'
+                      : 'Download failed. Check the connection and, in the browser, CORS permissions.';
+            failure = usefulFailure(failure, candidate);
+        } finally {
+            clearTimeout(stallTimer);
+            clearTimeout(hardTimer);
+            signal.removeEventListener('abort', abort);
+        }
+    }
+    return failure;
+}
+
 async function run(force) {
     await ready;
     const enabled = enabledSources(),
-        records = storeValue(epgState).records;
-    const pending = enabled.filter((s) => force || !records[s.id] || Date.now() - records[s.id].updated >= DAY);
-    if (!pending.length) return;
+        records = storeValue(epgState).records,
+        channels = [...channelIds],
+        signature = channelSignature,
+        pending = prioritizeSources(
+            enabled.filter(
+                (source) =>
+                    force ||
+                    !records[source.id] ||
+                    records[source.id].channels !== signature ||
+                    Date.now() - records[source.id].updated >= DAY,
+            ),
+            records,
+            signature,
+        );
+    if (!channels.length || !pending.length) return;
     controller = new AbortController();
-    const signal = controller.signal;
+    const signal = controller.signal,
+        health = loadMirrorHealth(),
+        active = new Map(),
+        retired = new Set();
     patch({ running: true, completed: 0, total: pending.length, errors: {}, phase: 'Downloading the guide…' });
-    let completed = 0;
-    try {
-        for (const source of pending) {
-            if (signal.aborted) break;
-            patch({ source: source.name, received: 0, bytes: 0, count: 0, phase: 'Downloading the guide…' });
-            let failure;
-            for (const url of source.urls) {
-                if (signal.aborted) break;
-                const generation = crypto.randomUUID(),
-                    attempt = new AbortController();
-                const abort = () => attempt.abort();
-                signal.addEventListener('abort', abort, { once: true });
-                const timeout = setTimeout(abort, 180000);
-                try {
-                    const download = await openStream(url, attempt.signal);
-                    const result = await importStream(download, generation, attempt.signal);
-                    if (signal.aborted) throw Error('EPG update stopped.');
-                    const record = { id: source.id, generation, updated: Date.now(), count: result.count };
-                    await commitSource(record);
-                    // Publish only a completely validated guide. Keep previous generations on errors.
-                    const old = storeValue(epgState).records[source.id];
-                    epgState.update((state) => ({
-                        ...state,
-                        records: { ...state.records, [source.id]: record },
-                        revision: state.revision + 1,
-                    }));
-                    if (old) await deleteGeneration(old.generation).catch(() => {});
-                    failure = null;
-                    break;
-                } catch (error) {
-                    await deleteGeneration(generation).catch(() => {});
-                    failure = signal.aborted
-                        ? 'EPG update stopped.'
-                        : attempt.signal.aborted
-                          ? 'The source timed out.'
-                          : EPG_ERRORS.has(error.message)
-                            ? error.message
-                            : error.name === 'QuotaExceededError'
-                              ? 'Unable to save EPG data. Check available storage.'
-                              : 'Download failed. Check the connection and, in the browser, CORS permissions.';
-                } finally {
-                    clearTimeout(timeout);
-                    signal.removeEventListener('abort', abort);
-                }
-            }
-            if (signal.aborted) break;
+    let completed = 0,
+        cursor = 0;
+    const progress = (source, values = {}) => {
+        active.set(source.id, { ...active.get(source.id), source: source.name, ...values });
+        const jobs = [...active.values()];
+        patch({
+            source: jobs.map((job) => job.source).join(' · '),
+            received: jobs.reduce((sum, job) => sum + (job.received || 0), 0),
+            bytes: jobs.reduce((sum, job) => sum + (job.bytes || 0), 0),
+            count: jobs.reduce((sum, job) => sum + (job.count || 0), 0),
+            phase: jobs.some((job) => job.phase === 'Reading and saving the guide…')
+                ? 'Reading and saving the guide…'
+                : 'Downloading the guide…',
+        });
+    };
+    async function worker() {
+        while (!signal.aborted) {
+            const position = cursor++;
+            if (position >= pending.length) return;
+            const source = pending[position];
+            progress(source);
+            const failure = await updateSource(
+                source,
+                records[source.id],
+                signal,
+                channels,
+                signature,
+                health,
+                progress,
+                retired,
+            );
+            active.delete(source.id);
+            if (signal.aborted) return;
             completed++;
-            epgState.update((s) => ({
-                ...s,
+            epgState.update((state) => ({
+                ...state,
                 completed,
-                errors: failure ? { ...s.errors, [source.id]: failure } : s.errors,
+                errors: failure ? { ...state.errors, [source.id]: failure } : state.errors,
             }));
         }
+    }
+    try {
+        await Promise.all(Array.from({ length: Math.min(IMPORT_CONCURRENCY, pending.length) }, () => worker()));
+        if (!signal.aborted && retired.size) {
+            patch({ source: '', phase: 'Cleaning outdated guide data…' });
+            for (const generation of retired) await deleteGeneration(generation).catch(() => {});
+        }
     } finally {
+        saveMirrorHealth(health);
         patch({
             running: false,
             source: '',
@@ -302,6 +513,12 @@ export function refreshEpg(force = true) {
     if (task) return task;
     task = run(force)
         .catch(() => patch({ running: false, phase: 'Unable to save EPG data. Check available storage.' }))
-        .finally(() => (task = null));
+        .finally(() => {
+            task = null;
+            if (rerun) {
+                rerun = false;
+                void refreshEpg(false);
+            }
+        });
     return task;
 }

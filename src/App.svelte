@@ -2,7 +2,7 @@
     import { t, locale, languagePreference, setLocale, refreshDeviceLocale, message as messageText } from './i18n.js';
     import EpgSettings from './EpgSettings.svelte';
     import Guide from './Guide.svelte';
-    import { epgState, startEpg, disposeEpg, lookupGuide, enabledSources } from './epg/service.js';
+    import { epgState, startEpg, disposeEpg, lookupGuide, enabledSources, setEpgPlaylists } from './epg/service.js';
     import { settings, changeSetting } from './settings.js';
     import LoadMore from './LoadMore.svelte';
     import CategoryManager from './CategoryManager.svelte';
@@ -108,6 +108,9 @@
                 message = 'Unable to synchronize the player language. Please try again.';
             });
     });
+    $effect(() => {
+        if (storageReady) setEpgPlaylists(lists);
+    });
     onMount(() => {
         void boot();
         window.addEventListener('tuca-back', back);
@@ -137,7 +140,7 @@
             lastOpened = (await get('tuca-last-opened')) || {};
         } catch {}
         storageReady = true;
-        void startEpg();
+        void startEpg(lists);
         await tick();
         ensureFocus();
         if (isNative) {
@@ -842,7 +845,7 @@
             <span class="dot"></span>
             {$t('Everything on your device')}
             <p>{$t('No account. Just your TV.')}</p>
-            <small>{$t('TucaTV / VERSION 1.13.2')}</small>
+            <small>{$t('TucaTV / VERSION 0.13.3')}</small>
         </div>
     </aside>
     <main>

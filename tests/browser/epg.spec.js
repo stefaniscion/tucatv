@@ -170,7 +170,7 @@ test('sources are searchable and progressive; cancellation leaves no published p
     const progress = page.getByRole('link', { name: 'Avanzamento aggiornamento EPG' });
     await expect(progress).toBeVisible();
     await expect(progress).toContainText('0 / 56');
-    await expect(progress).toContainText(sources[0].name);
+    await expect(progress).toContainText(sources.find((source) => source.group === 'Rytec Italia XMLTV').name);
     await page.getByRole('button', { name: 'Catalogo', exact: true }).click();
     await expect(progress).toBeVisible();
     await progress.focus();

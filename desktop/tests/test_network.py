@@ -4,7 +4,7 @@ from unittest.mock import patch
 from email.message import Message
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from network import valid_url, download
+from network import valid_url, conditional_header, download
 
 
 class Reply:
@@ -33,6 +33,10 @@ class NetworkTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 valid_url(value)
         self.assertEqual(valid_url("http://example.test/live/1"), "http://example.test/live/1")
+
+    def test_conditional_headers_reject_injection(self):
+        self.assertEqual(conditional_header('"guide-v1"'), '"guide-v1"')
+        self.assertEqual(conditional_header("value\r\nInjected: yes"), "")
 
     def test_image_encoded_for_webview(self):
         with patch("network.urlopen", return_value=Reply(b"png", "image/png")):
@@ -90,7 +94,7 @@ class TransferTests(unittest.TestCase):
             if part["done"]:
                 break
             block = base64.b64decode(part["data"])
-            self.assertLessEqual(len(block), 65536)
+            self.assertLessEqual(len(block), 262144)
             chunks.append(block)
         self.assertEqual(b"".join(chunks), body)
         store.close(result["handle"])

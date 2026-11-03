@@ -50,14 +50,9 @@ export async function deleteGeneration(generation) {
     const db = await database(),
         tx = db.transaction('programmes', 'readwrite');
     const done = complete(tx);
-    const r = tx.objectStore('programmes').index('generation').openKeyCursor(IDBKeyRange.only(generation));
-    r.onsuccess = () => {
-        const c = r.result;
-        if (c) {
-            tx.objectStore('programmes').delete(c.primaryKey);
-            c.continue();
-        }
-    };
+    // The generation is the first component of the primary key, so one range
+    // deletion replaces thousands of cursor/delete round trips.
+    tx.objectStore('programmes').delete(IDBKeyRange.bound([generation], [generation, []]));
     await done;
 }
 export async function cleanOrphans() {

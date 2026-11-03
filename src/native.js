@@ -89,7 +89,7 @@ export async function nativeText(url, onProgress) {
     }
 }
 // The playlist stays in private cache. Only bounded chunks cross the WebView bridge.
-export async function nativePlaylist(url, onProgress) {
+export async function nativePlaylist(url, onProgress, conditions = {}) {
     const requestId = crypto.randomUUID();
     let listener;
     try {
@@ -102,7 +102,18 @@ export async function nativePlaylist(url, onProgress) {
                         percent: p.total > 0 && p.received <= p.total ? Math.floor((p.received / p.total) * 100) : null,
                     });
             });
-        const { handle, size } = await nativeCall('downloadPlaylist', { url, requestId }, onProgress);
+        const { handle, size, notModified, etag, lastModified } = await nativeCall(
+            'downloadPlaylist',
+            { url, requestId, etag: conditions.etag || '', lastModified: conditions.lastModified || '' },
+            onProgress,
+        );
+        if (notModified)
+            return {
+                notModified: true,
+                etag: conditions.etag || '',
+                lastModified: conditions.lastModified || '',
+                dispose: async () => {},
+            };
         let closed = false;
         const dispose = async () => {
             if (!closed) {
@@ -119,8 +130,10 @@ export async function nativePlaylist(url, onProgress) {
                             controller.close();
                             await dispose();
                         } else {
-                            const raw = atob(part.data);
-                            controller.enqueue(Uint8Array.from(raw, (c) => c.charCodeAt(0)));
+                            const raw = atob(part.data),
+                                bytes = new Uint8Array(raw.length);
+                            for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+                            controller.enqueue(bytes);
                         }
                     } catch (error) {
                         controller.error(error);
@@ -131,7 +144,7 @@ export async function nativePlaylist(url, onProgress) {
             },
             { highWaterMark: 0 },
         );
-        return { stream, total: size, dispose };
+        return { stream, total: size, etag, lastModified, dispose };
     } finally {
         await listener?.remove();
     }

@@ -7,7 +7,7 @@ import java.net.URLConnection;
 
 final class HttpRequest {
 
-    static final String USER_AGENT = "TucaTV/1.13.2";
+    static final String USER_AGENT = "TucaTV/0.13.3";
 
     private HttpRequest() {}
 
