@@ -81,10 +81,12 @@ Distribute the entire output directory. This command does not bundle VLC; instal
 ```sh
 npm test
 npm run build
-python -m unittest discover -s desktop/tests -p 'test_network.py'
+npx playwright install chromium
+npm run test:ui
+python -m unittest discover -s desktop/tests
 ```
 
-CI runs web unit/UI tests and build, desktop network/queue tests, Android compilation and bounded native transfer/queue tests. Streaming, audio routing, PiP and TV navigation require device testing. Browser tests use synthetic playlists and XMLTV only.
+Run validation locally; no CI workflows are configured. Streaming, audio routing, PiP and TV navigation require device testing. Browser tests use synthetic playlists and XMLTV only.
 
 ## Source layout
 
