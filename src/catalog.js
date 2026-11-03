@@ -2,7 +2,10 @@ export function separator(c) { return /^[-_=*•─━]{3,}.+[-_=*•─━]{3,}
 export function kind(c) {
  if (c.kind === 'vod' || c.kind === 'live') return c.kind;
  let path='';try { path=new URL(c.url).pathname; } catch {}
- return /\.(mp4|mkv|avi|mov|webm|m4v)$/i.test(path)||/\/(movie|series|vod)\//i.test(path)||/\b(vod|film|movies|cinema|serie|series)\b/i.test(c.group||'') ? 'vod' : 'live';
+ // Provider live routes are stronger evidence than a category label.
+ if (/\/live\//i.test(path)) return 'live';
+ // Genre labels (Cinema, Film, Series) also describe live TV channels.
+ return /\.(mp4|mkv|avi|mov|webm|m4v)$/i.test(path)||/\/(movie|series|vod)\//i.test(path)||/\bvod\b/i.test(c.group||'') ? 'vod' : 'live';
 }
 export function catalogue(channels, mode, query, group, favorites) {
  const q=query.trim().toLocaleLowerCase('it');

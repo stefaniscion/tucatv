@@ -67,3 +67,9 @@ Barra condivisa per file, link e aggiornamento playlist: trasferimento (byte ric
 - Categorie nascondibili dalla gestione playlist, con ricerca, paginazione, mostra/nascondi tutte e salvataggio esplicito. Le esclusioni si applicano a catalogo, ricerca e preferiti; restano salvate durante il refresh remoto. I canali non vengono eliminati.
 - Android 0.9.0 / versionCode 8. Nuova chiave di firma, conservata separatamente dal repository: il primo passaggio dagli APK precedenti richiede disinstallazione e reimportazione delle playlist. Gli aggiornamenti successivi devono riutilizzare questa chiave.
 - Verifiche: 22 test JavaScript; layout browser 844×390, 390×844 e 1280×720; salvataggio categorie, esclusione dal catalogo e persistenza dopo refresh. Prove fisiche su TV/telefono ancora necessarie.
+
+## Versione 0.9.1 — Cutout e classificazione
+- MainActivity estende la finestra nella zona del cutout laterale, senza una colonna vuota in landscape. Sfondo nativo nero, insets aggiornati dal sistema per barre e tastiera; nessun secondo padding CSS su Android. Il comportamento fisico del notch va verificato sul dispositivo.
+- Cinema, Film, Movies e Series come nomi di categoria non bastano più a classificare un canale come VOD. Rotte /live/ prevalgono sulle categorie; file video, rotte /movie/, /series/, /vod/ e categorie con indicazione esplicita VOD restano on demand. I casi ambigui restano Live. La correzione si applica anche alle playlist già salvate.
+- VersionCode 9, versionName 0.9.1. Stessa chiave della 0.9.0, quindi aggiornamento senza disinstallazione. 23 test JavaScript, inclusi i casi Sky Cinema e le sorgenti VOD reali.
+- Preferiti nella griglia: pulsante cuore indipendente su ogni scheda, accessibile al tocco e al telecomando senza avviare il canale.
