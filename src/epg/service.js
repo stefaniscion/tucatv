@@ -28,7 +28,10 @@ export function cancelEpg(){controller?.abort();patch({phase:'EPG_STOPPING'});}
 export async function clearEpg(){if(task)return;await clearGuides();patch({records:{},errors:{}});await loadMetadata();}
 async function openStream(url,signal){
  if(signal.aborted)throw Error('EPG_CANCELLED');
- if(isNative){const download=await nativePlaylist(url,p=>patch({received:p.received}));if(signal.aborted){await download.dispose();throw Error('EPG_CANCELLED');}return download;}
+ if(isNative){
+  try{const download=await nativePlaylist(url,p=>patch({received:p.received}));if(signal.aborted){await download.dispose();throw Error('EPG_CANCELLED');}return download;}
+  catch(error){if(signal.aborted||error?.message==='EPG_CANCELLED')throw Error('EPG_CANCELLED');throw Error('EPG_NATIVE_NETWORK');}
+ }
  if(location.protocol==='https:'&&new URL(url).protocol==='http:')throw Error('EPG_MIXED');
  try{
   const response=await fetch(url,{signal});if(!response.ok)throw Error('EPG_HTTP');if(!response.body)throw Error('EPG_NETWORK');

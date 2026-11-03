@@ -37,7 +37,7 @@ public class NativePlayerPlugin extends Plugin {
   String value=call.getString("url","");String id=call.getString("requestId","");
   if(!value.startsWith("http://")&&!value.startsWith("https://")){call.reject(tr("URL non valido"));return;}
   downloadPool.execute(()->{java.net.HttpURLConnection connection=null;try{
-   connection=(java.net.HttpURLConnection)new java.net.URL(value).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setRequestProperty("Accept-Encoding","identity");
+   connection=HttpRequest.open(value,15000,30000,"text/xml, text/plain;q=0.9, application/octet-stream;q=0.8");
    int status=connection.getResponseCode();if(status<200||status>=300){call.reject(tr("La sorgente ha risposto con errore HTTP ")+status);return;}
    long total=connection.getContentLengthLong();if(connection.getContentEncoding()!=null)total=0;if(total<0)total=0;if(total>67108864){call.reject(tr("La guida XMLTV supera il limite di 64 MB."));return;}
    progress(id,0,total);long last=0,start=android.os.SystemClock.elapsedRealtime();java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
@@ -52,7 +52,7 @@ public class NativePlayerPlugin extends Plugin {
   downloadPool.execute(()->{java.net.HttpURLConnection connection=null;java.io.File file=null;String handle=null;boolean retained=false;try{
    // Playlist import and EPG downloads may overlap; never invalidate another reader.
    if(playlistFiles.size()>=4)throw new java.io.IOException("Too many downloads");
-   connection=(java.net.HttpURLConnection)new java.net.URL(value).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setRequestProperty("Accept-Encoding","identity");
+   connection=HttpRequest.open(value,15000,30000,"application/octet-stream, application/x-xz, application/xml;q=0.9, text/xml;q=0.9");
    int status=connection.getResponseCode();if(status<200||status>=300){call.reject(tr("La sorgente ha risposto con errore HTTP ")+status);return;}
    long length=connection.getContentLengthLong();final long total=connection.getContentEncoding()==null&&length>0?length:0;
    if(total>PlaylistTransfer.MAX_BYTES){call.reject(tr("La playlist supera il limite di 256 MB."));return;}
@@ -77,8 +77,7 @@ public class NativePlayerPlugin extends Plugin {
   imagePool.execute(()->{
    java.net.HttpURLConnection connection=null;
    try{
-    connection=(java.net.HttpURLConnection)new java.net.URL(value).openConnection();
-    connection.setConnectTimeout(8000);connection.setReadTimeout(8000);connection.setRequestProperty("Accept","image/*");
+    connection=HttpRequest.open(value,8000,8000,"image/*");
     int status=connection.getResponseCode();if(status<200||status>=300)throw new java.io.IOException();
     if(connection.getContentLengthLong()>2097152)throw new java.io.IOException();
     String type=connection.getContentType();if(type==null)type="image/png";type=type.split(";")[0].trim();
